@@ -1,0 +1,2465 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMR City Builder Tycoon: มหาเศรษฐีสร้างเมือง</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #1e293b;
+            color: #e2e8f0;
+            overflow-x: hidden;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            user-select: none; 
+        }
+
+        * { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="%23facc15" stroke="%23ffffff" stroke-width="1.5" stroke-linejoin="round"><polygon points="4 2 4 20 8 15 13 23 16 21 11 14 18 14" /></svg>') 8 4, auto !important; }
+        *:active { cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="%23eab308" stroke="%23ffffff" stroke-width="1.5" stroke-linejoin="round"><polygon points="4 2 4 20 8 15 13 23 16 21 11 14 18 14" /></svg>') 7 3, auto !important; }
+
+        #canvas-container {
+            flex: 1; background-color: #87CEEB; border-radius: 12px; overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); border: 4px solid #475569;
+            position: relative; min-height: 400px; cursor: grab;
+        }
+        
+        #canvas-container:active { cursor: grabbing; }
+        canvas { display: block; width: 100% !important; height: 100% !important; outline: none; }
+        
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        #loading {
+            position: absolute; inset: 0; background: rgba(0,0,0,0.8);
+            display: flex; justify-content: center; align-items: center;
+            color: white; font-size: 1.5rem; z-index: 10; transition: opacity 0.5s;
+        }
+
+        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-50px) scale(1.5); opacity: 0; } }
+        .float-text { position: absolute; font-weight: bold; font-size: 20px; pointer-events: none; animation: floatUp 1.2s ease-out forwards; z-index: 50; text-shadow: 0px 0px 5px #000; }
+    </style>
+</head>
+<body class="py-4">
+
+    <audio id="bgm" loop preload="auto"><source src="https://codeskulptor-demos.commondatastorage.googleapis.com/pang/paza-moduless.mp3" type="audio/mpeg"></audio>
+
+    <div id="auth-screen" class="fixed inset-0 bg-slate-900 z-[100] flex flex-col items-center justify-center p-8 overflow-y-auto">
+        <h1 class="text-4xl md:text-6xl font-bold text-yellow-400 mb-8 drop-shadow-lg text-center mt-10">
+            🏗️ City Builder Tycoon
+            <span class="block text-2xl md:text-4xl text-white mt-4">ระบบเข้าสู่ระบบออนไลน์</span>
+        </h1>
+        <div class="bg-slate-800 border-4 border-yellow-500 p-8 rounded-3xl shadow-[0_0_25px_rgba(234,179,8,0.4)] max-w-md w-full mb-10">
+            <h2 id="auth-title" class="text-3xl text-white font-bold mb-6 text-center">เข้าสู่ระบบ</h2>
+            <div id="auth-name-container" class="mb-4 hidden">
+                <label class="block text-slate-400 mb-2">ชื่อผู้รับเหมา (แสดงในเกม)</label>
+                <div class="flex gap-2">
+                    <input type="text" id="auth-name" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-yellow-500" placeholder="ตั้งชื่อนายกเทศมนตรีของคุณ">
+                    <button type="button" onclick="generateRandomName()" class="bg-orange-600 hover:bg-orange-500 text-white px-4 rounded-lg font-bold transition whitespace-nowrap shadow-md">🎲 สุ่ม</button>
+                </div>
+            </div>
+            <div class="mb-4"><label class="block text-slate-400 mb-2">อีเมล</label><input type="email" id="auth-email" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-yellow-500" placeholder="mayor@smr.com"></div>
+            <div class="mb-6"><label class="block text-slate-400 mb-2">รหัสผ่าน</label><input type="password" id="auth-password" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-yellow-500" placeholder="••••••••"></div>
+            <p id="auth-error" class="text-red-500 text-sm mb-4 hidden text-center"></p>
+            <button id="btn-login" onclick="handleLogin()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl text-xl transition shadow-md mb-3">เข้าสู่ระบบ / โหลดเซฟ</button>
+            <button id="btn-register" onclick="handleRegister()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl text-xl transition shadow-md mb-4 hidden">สมัครสมาชิก</button>
+            <div class="text-center"><button onclick="toggleAuthMode()" class="text-yellow-400 hover:text-yellow-300 underline text-sm mt-2"><span id="auth-switch-text">ยังไม่มีบัญชีใช่ไหม? สมัครสมาชิก</span></button></div>
+        </div>
+    </div>
+
+    <div id="user-hud" style="display: none;" class="fixed top-4 right-4 z-[60] flex gap-2">
+        <button onclick="openAdminAuth()" class="bg-purple-600 hover:bg-purple-500 text-white text-sm font-bold py-2 px-4 rounded-full shadow-lg border-2 border-white transition transform hover:scale-105">🛠️ แอดมิน</button>
+        <button onclick="openSettings()" class="bg-slate-600 hover:bg-slate-500 text-white text-sm font-bold py-2 px-4 rounded-full shadow-lg border-2 border-white transition transform hover:scale-105">⚙️ ตั้งค่า</button>
+        <button onclick="saveGameData()" class="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold py-2 px-4 rounded-full shadow-lg border-2 border-white transition transform hover:scale-105">💾 บันทึกเกม</button>
+        <button onclick="handleLogout()" class="bg-red-600 hover:bg-red-500 text-white text-sm font-bold py-2 px-4 rounded-full shadow-lg border-2 border-white transition transform hover:scale-105">🚪 ออกจากระบบ</button>
+    </div>
+
+    <div id="main-menu" style="display: none;" class="fixed inset-0 bg-slate-900 bg-opacity-95 z-50 flex flex-col items-center justify-center p-8 overflow-y-auto">
+        <h1 class="text-5xl md:text-7xl font-bold text-yellow-400 mb-8 drop-shadow-lg text-center mt-10">🏗️ SMR City Builder Tycoon<span class="block text-3xl md:text-5xl text-white mt-4">มหาเศรษฐีสร้างเมือง</span></h1>
+        <div class="text-xl md:text-2xl text-white mb-4 bg-slate-800 px-6 py-3 rounded-2xl border-2 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.4)] z-10 text-center">ยินดีต้อนรับท่านนายกเทศมนตรี, <span id="menu-player-name" class="text-blue-400 font-bold text-2xl md:text-3xl drop-shadow-md">มือใหม่</span> 👷‍♂️</div>
+        <div class="text-2xl text-white mb-10 bg-slate-800 px-10 py-6 rounded-3xl border-4 border-yellow-500 shadow-[0_0_25px_rgba(234,179,8,0.4)] z-10 flex gap-6 items-center"><div>งบประมาณเมือง: <span id="menu-money" class="text-green-400 font-bold text-4xl">25,000</span> ฿</div></div>
+        
+        <div id="resume-container" class="w-full max-w-2xl mb-6 hidden">
+            <div class="bg-blue-900/50 border border-blue-500 p-8 rounded-2xl text-center shadow-[0_0_20px_rgba(59,130,246,0.4)]">
+                <h3 class="text-3xl font-bold text-white mb-4">⚠️ โครงการกำลังดำเนินอยู่!</h3>
+                <p class="text-blue-200 mb-6 text-xl">คนงานกำลังทำงานในไซต์ก่อสร้างของคุณ</p>
+                <button onclick="resumeGame()" class="w-full bg-blue-600 hover:bg-blue-500 text-white text-2xl font-bold py-4 px-12 rounded-full shadow-lg transition-transform transform hover:scale-105 mb-4">🏗️ กลับไปดูแลเมือง</button>
+            </div>
+        </div>
+        
+        <div class="flex gap-4 flex-wrap justify-center mb-10" id="start-btn-group">
+            <button id="btn-start" onclick="startGame()" class="bg-green-600 hover:bg-green-500 text-white text-3xl font-bold py-4 px-12 rounded-full shadow-[0_10px_30px_rgba(34,197,94,0.5)] transition-all transform hover:scale-105">▶️ เริ่มเกมส์</button>
+            <button onclick="openHowToPlay()" class="bg-blue-600 hover:bg-blue-500 text-white text-3xl font-bold py-4 px-8 rounded-full shadow-[0_10px_30px_rgba(59,130,246,0.5)] transition-all transform hover:scale-105">📖 วิธีเล่น</button>
+            <button onclick="openLeaderboard()" class="bg-purple-600 hover:bg-purple-500 text-white text-3xl font-bold py-4 px-8 rounded-full shadow-[0_10px_30px_rgba(147,51,234,0.5)] transition-all transform hover:scale-105">🏆 Top 10 อสังหาฯ</button>
+        </div>
+    </div>
+
+    <button id="btn-toggle-panel" onclick="togglePanel()" style="display: none;" class="fixed top-4 left-4 z-40 bg-gradient-to-r from-orange-500 to-yellow-400 text-slate-900 p-3 rounded-full shadow-[0_0_20px_rgba(234,179,8,0.8)] border-2 border-white hover:from-orange-400 hover:to-yellow-300 text-xl md:text-2xl transition transform hover:scale-110 font-bold whitespace-nowrap">🎒 สถิติเมือง & จ้างงาน</button>
+
+    <div id="top-hud" style="display: none;" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-30 bg-slate-900/90 border border-slate-600 rounded-full px-4 md:px-6 py-2 shadow-[0_5px_15px_rgba(0,0,0,0.5)] flex flex-nowrap justify-start md:justify-center gap-3 md:gap-5 items-center text-xs md:text-sm backdrop-blur-sm transition-all duration-300 max-w-[95vw] overflow-x-auto whitespace-nowrap no-scrollbar">
+        <div id="hud-name-badge" class="text-white drop-shadow-md shrink-0 font-bold bg-blue-800/80 px-2 py-1 rounded-full border border-blue-500 text-[10px] md:text-xs flex items-center gap-1">👷‍♂️ <span id="hud-player-name" class="max-w-[80px] md:max-w-[120px] truncate">นายกฯ</span></div>
+        <div class="text-green-400 font-bold drop-shadow-md shrink-0">฿ <span id="hud-money">0</span></div>
+        <div class="text-blue-200 drop-shadow-md shrink-0" title="จำนวนประชากร (จากบ้าน)">👥 <span id="hud-house">0</span></div>
+        <div class="text-yellow-400 drop-shadow-md shrink-0" title="เสบียงอาหาร (จากร้านค้า)">🍔 <span id="hud-shop">0</span></div>
+        <div class="text-orange-400 drop-shadow-md shrink-0" title="แรงงาน (จากโรงงาน)">👷 <span id="hud-factory">0</span></div>
+        <div class="text-purple-400 drop-shadow-md shrink-0" title="นักท่องเที่ยว (จากโรงแรม)">📸 <span id="hud-hotel">0</span></div>
+        <div class="flex gap-1 shrink-0 ml-1">
+            <button id="btn-mute-music" onclick="toggleMusic()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow transition-colors">🎵 ดนตรี</button>
+            <button id="btn-mute-sfx" onclick="toggleSfx()" class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow transition-colors">🔊 เสียง</button>
+        </div>
+    </div>
+
+    <div id="ui-panel" style="display: none;" class="fixed top-0 left-0 h-full w-80 bg-slate-800 p-6 pb-8 shadow-[5px_0_25px_rgba(0,0,0,0.7)] border-r border-slate-700 z-50 transform -translate-x-full transition-transform duration-300 flex flex-col overflow-y-auto">
+        <button onclick="togglePanel()" class="absolute top-2 right-4 text-slate-400 hover:text-white text-4xl font-bold z-10">&times;</button>
+        <div class="flex-none">
+            <h2 class="text-xl font-semibold mb-4 text-white border-b border-slate-600 pb-2 pr-8">📈 สถิติ & ทรัพยากรเมือง</h2>
+            <div class="mb-4"><div class="bg-slate-900 p-3 rounded-lg text-center border border-green-500/30 shadow-inner"><div class="text-slate-400 text-xs mb-1">งบประมาณคลัง</div><div class="text-2xl font-bold text-green-400">฿ <span id="stat-money">0</span></div></div></div>
+            
+            <div class="grid grid-cols-3 gap-2 mb-4 text-center">
+                <div class="bg-slate-900 p-2 rounded-lg border border-pink-500/30 shadow-inner">
+                    <div class="text-[10px] text-slate-400">ความสุขเมือง</div>
+                    <div class="text-sm font-bold text-pink-400 mt-1">💖 <span id="stat-happiness">0%</span></div>
+                </div>
+                <div class="bg-slate-900 p-2 rounded-lg border border-green-500/30 shadow-inner">
+                    <div class="text-[10px] text-slate-400">ความอิ่มท้อง</div>
+                    <div class="text-sm font-bold text-green-400 mt-1">🍖 <span id="stat-hunger">0%</span></div>
+                </div>
+                <div class="bg-slate-900 p-2 rounded-lg border border-yellow-500/30 shadow-inner">
+                    <div class="text-[10px] text-slate-400">ดัชนีความมั่งคั่ง</div>
+                    <div class="text-sm font-bold text-yellow-400 mt-1">💎 <span id="stat-wealth">0%</span></div>
+                </div>
+            </div>
+
+            <div class="space-y-2 mb-6 pr-1">
+                <div class="flex justify-between items-center bg-slate-700/50 p-2 rounded-lg border-l-4 border-blue-400 text-sm"><span>👥 ประชากร (จากบ้าน)</span> <span class="font-bold text-blue-200" id="stat-house">0</span></div>
+                <div class="flex justify-between items-center bg-slate-700/50 p-2 rounded-lg border-l-4 border-yellow-400 text-sm"><span>🍔 อาหาร (จากร้านค้า)</span> <span class="font-bold text-yellow-400" id="stat-shop">0</span></div>
+                <div class="flex justify-between items-center bg-slate-700/50 p-2 rounded-lg border-l-4 border-orange-400 text-sm"><span>👷 แรงงาน (จากโรงงาน)</span> <span class="font-bold text-orange-400" id="stat-factory">0</span></div>
+                <div class="flex justify-between items-center bg-slate-700/50 p-2 rounded-lg border-l-4 border-purple-400 text-sm mt-2"><span>📸 นักท่องเที่ยว (โรงแรม)</span> <span class="font-bold text-purple-400" id="stat-hotel">0</span></div>
+            </div>
+
+            <h2 class="text-xl font-semibold mb-3 text-white border-b border-slate-600 pb-2">🚜 จ้างผู้รับเหมา</h2>
+            <div class="grid grid-cols-1 gap-2 mb-4">
+                <button onclick="buyCar('worker_1')" class="bg-slate-900 border border-slate-700 hover:border-yellow-500 rounded-xl p-2 transition w-full">
+                    <div class="flex justify-between items-center px-1">
+                        <div class="flex items-center gap-3"><span class="text-3xl">👷‍♂️</span><div class="text-left"><span class="text-[12px] font-bold text-white block">ทีมช่างก่อสร้าง</span><span class="text-[12px] text-slate-400 block">จ้างเหมา 1 ไซต์งาน</span><span class="text-[12px] text-green-400 block font-semibold">1,500 ฿ / รอบ</span></div></div>
+                        <span class="text-xs bg-slate-700 text-white px-2 py-1 rounded-full border border-slate-500">มี <span id="count-worker_1" class="text-yellow-400 font-bold">0</span></span>
+                    </div>
+                </button>
+            </div>
+        </div>
+        <div class="mt-auto pt-4 border-t border-slate-600 flex gap-2 shrink-0"><button onclick="togglePanel()" class="flex-1 bg-red-600 hover:bg-red-500 text-white py-2 px-1 rounded-lg transition shadow font-bold flex items-center justify-center gap-1 text-sm">❌ ปิดเมนู</button></div>
+    </div>
+
+    <div id="canvas-container" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; display: none; z-index: 10;">
+        <div id="loading">กำลังเตรียมพื้นที่ก่อสร้าง...</div>
+        <div id="labels-container" class="absolute inset-0 pointer-events-none z-20 overflow-hidden"></div>
+    </div>
+
+    <div id="admin-auth-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border-2 border-purple-500 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl transform scale-95 transition-transform duration-300">
+            <h3 class="text-2xl font-bold text-white mb-4">🔒 ยืนยันตัวตนแอดมิน</h3>
+            <input type="password" id="admin-password-input" class="w-full bg-slate-900 border border-slate-600 rounded-lg p-3 text-white outline-none focus:border-purple-500 mb-4 text-center text-xl tracking-[0.5em]" placeholder="รหัสผ่าน">
+            <div class="flex gap-2">
+                <button onclick="checkAdminPassword()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-4 rounded-xl flex-1 text-sm transition shadow-md">ยืนยัน</button>
+                <button onclick="closeAdminAuth()" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-xl flex-1 text-sm transition shadow-md">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-panel-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border-4 border-purple-500 rounded-3xl p-6 max-w-md w-full text-center shadow-[0_0_30px_rgba(168,85,247,0.5)] transform scale-95 transition-transform duration-300">
+            <h3 class="text-3xl font-bold text-white mb-6">🛠️ แผงควบคุมแอดมิน</h3>
+            <div class="space-y-4 text-left">
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <label class="block text-yellow-400 mb-2 font-bold text-sm">💰 เสกเงินเข้าคลัง (เงินตั้งต้น):</label>
+                    <div class="flex gap-2">
+                        <input type="number" id="admin-add-money-input" class="w-full bg-slate-800 border border-slate-600 rounded-lg p-2 text-white outline-none font-mono" value="1000000">
+                        <button onclick="adminAddMoney()" class="bg-green-600 hover:bg-green-500 text-white font-bold px-4 rounded-lg shadow whitespace-nowrap">เพิ่มเงิน</button>
+                    </div>
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <label class="block text-blue-400 mb-2 font-bold text-sm">🏗️ ความเร็วการก่อสร้าง: <span id="admin-build-speed-val" class="text-white">1.0</span>x</label>
+                    <input type="range" id="admin-build-speed" min="0.1" max="10" step="0.1" value="1" class="w-full cursor-pointer" oninput="updateAdminSettings()">
+                </div>
+                <div class="bg-slate-900 p-4 rounded-xl border border-slate-700">
+                    <label class="block text-pink-400 mb-2 font-bold text-sm">⏳ ความเร็วการได้เงิน (Passive): <span id="admin-income-speed-val" class="text-white">1.0</span>x</label>
+                    <input type="range" id="admin-income-speed" min="0.1" max="10" step="0.1" value="1" class="w-full cursor-pointer" oninput="updateAdminSettings()">
+                    <p class="text-xs text-slate-500 mt-1">*ยิ่งค่าสูง เงินยิ่งเด้งเร็ว</p>
+                </div>
+            </div>
+            <button onclick="closeAdminPanel()" class="mt-6 bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-4 rounded-xl w-full text-lg transition shadow-md">ปิดแผงควบคุม</button>
+        </div>
+    </div>
+    <div id="settings-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border-2 border-slate-500 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl transform scale-95 transition-transform duration-300">
+            <h3 class="text-3xl font-bold text-white mb-6 drop-shadow-md">⚙️ ตั้งค่าระบบ</h3>
+            <div class="space-y-4 text-left">
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-700"><label class="block text-slate-300 mb-1 text-sm font-bold">☀️ ความสว่าง: <span id="light-val" class="text-yellow-400">100</span>%</label><input type="range" id="light-slider" min="0.5" max="2.0" step="0.1" value="1.2" class="w-full cursor-pointer" oninput="updateSettings()"></div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-700"><label class="block text-slate-300 mb-1 text-sm font-bold">🎵 ระดับเสียงดนตรี: <span id="bgm-val" class="text-blue-400">30</span>%</label><input type="range" id="bgm-slider" min="0" max="1" step="0.05" value="0.3" class="w-full cursor-pointer" oninput="updateSettings()"></div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-700"><label class="block text-slate-300 mb-1 text-sm font-bold">🔊 ระดับเสียงเอฟเฟกต์: <span id="sfx-val" class="text-green-400">100</span>%</label><input type="range" id="sfx-slider" min="0" max="1" step="0.05" value="1.0" class="w-full cursor-pointer" oninput="updateSettings()"></div>
+                <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 flex justify-between items-center"><span class="text-slate-300 text-sm font-bold">🏗️ แสดงความคืบหน้า</span><button id="btn-toggle-percentage" onclick="toggleCropPercentage()" class="bg-green-600 hover:bg-green-500 px-4 py-1.5 rounded-lg text-white text-sm font-bold transition shadow">เปิดอยู่</button></div>
+            </div>
+            <button onclick="closeSettings()" class="mt-6 bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 px-4 rounded-xl w-full text-lg transition shadow-md">บันทึก & ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <div id="leaderboard-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border-2 border-purple-500 rounded-2xl p-6 max-w-md w-full text-center shadow-2xl transform scale-95 transition-transform duration-300">
+            <h3 class="text-3xl font-bold text-yellow-400 mb-4 drop-shadow-md">🏆 Top 10 อสังหาฯ</h3><p class="text-slate-300 text-sm mb-4">(จัดอันดับจากงบประมาณสะสมในบัญชี)</p>
+            <div id="leaderboard-loading" class="text-white my-8 animate-pulse text-lg">กำลังโหลดข้อมูล...</div><div id="leaderboard-list" class="space-y-2 mb-6 max-h-[50vh] overflow-y-auto pr-2 text-left"></div>
+            <button onclick="closeLeaderboard()" class="bg-purple-600 hover:bg-purple-500 text-white font-bold py-3 px-4 rounded-xl w-full text-lg transition shadow-md">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+
+    <div id="how-to-play-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-md w-full text-left shadow-2xl transform scale-95 transition-transform duration-300">
+            <h3 class="text-3xl font-bold text-yellow-400 mb-4 text-center">📖 คู่มือการสร้างเมือง</h3>
+            <ul class="text-white space-y-3 mb-6 text-sm">
+                <li class="flex gap-2"><span>1.</span> <span><b>สร้างเมืองให้สมดุล:</b> ประชากร(บ้าน) ต้องการอาหาร(ร้านค้า) เพื่อความอิ่มท้อง และต้องการงาน(โรงงาน) เพื่อความมั่งคั่ง </span></li>
+                <li class="flex gap-2"><span>2.</span> <span><b>เมกะโปรเจกต์ (Mega Project):</b> สังเกตที่ดินแปลงยักษ์ (ขนาด 2x2) บริเวณขอบซ้าย-ขวาของเมือง ใช้สร้างสถานที่สำคัญ เช่น โรงเรียน โรงพยาบาล สนามบิน เพื่อบูสต์สถานะเมืองอย่างมหาศาล!</span></li>
+                <li class="flex gap-2"><span>3.</span> <span><b>คนงาน:</b> จ้างช่างก่อสร้างได้ที่เมนู "สถิติเมือง & จ้างงาน" (ใช้กับแปลงเล็กเท่านั้น) ส่วนแปลงยักษ์จะสร้างเสร็จทันทีที่จ่ายเงินประมูลโครงการ!</span></li>
+                <li class="flex gap-2"><span>4.</span> <span><b>เก็บภาษี/รายได้ 💰:</b> เมื่อตึก(แปลงเล็ก)สร้างเสร็จ 100% จะมีเหรียญ 3D ลอยขึ้นมาให้คลิกเก็บเงินภายใน 10 วินาที</span></li>
+                <li class="flex gap-2"><span>5.</span> <span><b>ขยายอาณาเขต:</b> ที่ดินที่มีรั้วสีเทา 🔒 คือพื้นที่ที่ยังไม่ได้รับสัมปทาน คลิกเพื่อใช้เงินปลดล็อคกรรมสิทธิ์</span></li>
+            </ul>
+            <button onclick="closeHowToPlay()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl w-full text-lg transition shadow-md">เข้าใจแล้ว ลุยเลย!</button>
+        </div>
+    </div>
+
+    <div id="mega-plot-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border-4 border-yellow-500 rounded-3xl p-6 max-w-md w-full text-center shadow-[0_0_30px_rgba(234,179,8,0.5)] transform scale-95 transition-transform duration-300">
+            <h3 class="text-3xl font-bold text-white mb-2">🌟 ที่ดินยักษ์ (Mega Plot)</h3>
+            <p id="mega-plot-subtitle" class="text-yellow-400 font-bold mb-4 text-lg">เขตชานเมือง</p>
+            
+            <div id="buy-mega-ui" class="hidden">
+                <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl mb-5 text-left">
+                    <p class="text-slate-300 text-sm mb-3">ที่ดินขนาด 2x2 แปลง เหมาะสำหรับสร้างโครงการระดับชาติ (Mega Projects)</p>
+                    <div class="flex justify-between items-center"><span class="text-slate-400">ราคาซื้อกรรมสิทธิ์:</span><span class="font-bold text-green-400 text-2xl">2,000,000 ฿</span></div>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btn-buy-mega" onclick="confirmBuyMegaPlot()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-4 rounded-xl flex-1 text-lg transition shadow-md">✅ ซื้อแปลงยักษ์นี้</button>
+                    <button onclick="closeMegaModal()" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 px-4 rounded-xl flex-1 text-lg transition shadow-md">ยกเลิก</button>
+                </div>
+            </div>
+
+            <div id="build-mega-ui" class="hidden">
+                <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl mb-5 text-left">
+                    <label class="text-sm text-yellow-400 font-bold block mb-2">เลือกเมกะโปรเจกต์ที่ต้องการประมูลสร้าง (สร้างเสร็จทันที):</label>
+                    <select id="mega-project-select" class="w-full bg-slate-800 text-white p-3 rounded-lg outline-none border border-slate-600 focus:border-yellow-500 font-bold text-sm">
+                        <option value="school">🏫 โรงเรียน (ทุน 1,000,000 ฿) | +20% สุข, +10% มั่งคั่ง</option>
+                        <option value="hospital">🏥 โรงพยาบาล (ทุน 2,000,000 ฿) | +30% สุข, +ปชก. 1000</option>
+                        <option value="transport">🚌 สถานีขนส่ง (ทุน 3,000,000 ฿) | +แรงงาน 2000, +อาหาร 1000</option>
+                        <option value="zoo">🦁 สวนสัตว์ (ทุน 4,000,000 ฿) | +นักท่องเที่ยว 2000, +40% สุข</option>
+                        <option value="airport">✈️ สนามบิน (ทุน 10,000,000 ฿) | +นักท่องเที่ยว 5000, +20% มั่งคั่ง</option>
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="confirmBuildMegaProject()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-4 rounded-xl flex-1 text-lg transition shadow-md">🏗️ อนุมัติสร้าง!</button>
+                    <button onclick="closeMegaModal()" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 px-4 rounded-xl flex-1 text-lg transition shadow-md">ยกเลิก</button>
+                </div>
+            </div>
+
+            <div id="demolish-mega-ui" class="hidden">
+                <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl mb-5 text-center">
+                    <div class="text-4xl mb-2" id="mega-built-icon">🏛️</div>
+                    <div class="text-yellow-400 font-bold text-xl mb-1" id="mega-built-name">โครงการ</div>
+                    <p class="text-slate-400 text-sm">โครงการนี้กำลังให้บริการประชาชนอยู่</p>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="confirmDemolishMega()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-3 px-4 rounded-xl flex-1 text-lg transition shadow-md">🧨 รื้อถอน</button>
+                    <button onclick="closeMegaModal()" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-3 px-4 rounded-xl flex-1 text-lg transition shadow-md">ปิดหน้าต่าง</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="car-select-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl transform scale-95 transition-transform duration-300">
+            <h3 id="car-select-title" class="text-2xl font-bold text-white mb-1">🏗️ สั่งงานก่อสร้าง</h3>
+            <p id="car-select-subtitle" class="text-yellow-400 font-bold mb-2 text-lg">โซน X</p>
+            <div id="car-select-custom-ui" class="mb-4"></div>
+            <div id="car-select-options" class="space-y-2 max-h-[30vh] overflow-y-auto pr-1"></div>
+            <div class="flex gap-2 mt-5"><button onclick="unassignPlotCars()" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2.5 px-4 rounded-xl flex-1 text-sm transition shadow-md">ถอนช่างกลับ</button><button onclick="closeCarSelect()" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-xl flex-1 text-sm transition shadow-md">ยกเลิก</button></div>
+        </div>
+    </div>
+
+    <div id="buy-plot-modal" class="fixed inset-0 bg-black/80 flex justify-center items-center opacity-0 pointer-events-none transition-opacity duration-300 z-[100]">
+        <div class="bg-slate-800 border border-slate-600 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl transform scale-95 transition-transform duration-300">
+            <div class="text-5xl mb-2">🔒</div><h3 class="text-2xl font-bold text-white mb-1">ประมูลซื้อที่ดินใหม่</h3><p id="buy-plot-subtitle" class="text-yellow-400 font-bold mb-4 text-lg">โซนที่ดิน</p>
+            <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl mb-5 text-left flex justify-between items-center"><span class="text-slate-400">ราคาซื้อที่ดิน:</span><span class="font-bold text-green-400 text-xl"><span id="buy-plot-price">500,000</span> ฿</span></div>
+            <div class="flex gap-2"><button id="btn-confirm-buy-plot" onclick="confirmBuyPlot()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2.5 px-4 rounded-xl flex-1 text-sm transition shadow-md">✅ ซื้อแปลงนี้</button><button onclick="closeBuyPlotModal()" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2.5 px-4 rounded-xl flex-1 text-sm transition shadow-md">ยกเลิก</button></div>
+        </div>
+    </div>
+
+    <div id="message-modal" class="fixed top-20 left-1/2 transform -translate-x-1/2 opacity-0 pointer-events-none transition-all duration-300 z-[100] w-[90%] max-w-sm">
+        <div class="bg-slate-800/95 backdrop-blur-md border-2 border-green-500 rounded-2xl p-5 text-center shadow-[0_15px_30px_rgba(0,0,0,0.6)] transform scale-95 transition-transform duration-300" id="message-content">
+            <div id="message-icon" class="text-4xl mb-2">💰</div><h3 id="message-title" class="text-xl font-bold text-white mb-1">สำเร็จ!</h3><p id="message-text" class="text-slate-300 text-sm">ข้อความจำลอง</p>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // FIREBASE INITIALIZATION & AUTH SYSTEM
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyAjIHXXbkaDllqHxsp01QT08T6MyLWziqI",
+            authDomain: "test-mode-175a8.firebaseapp.com",
+            databaseURL: "https://test-mode-175a8-default-rtdb.firebaseio.com",
+            projectId: "test-mode-175a8",
+            storageBucket: "test-mode-175a8.firebasestorage.app",
+            messagingSenderId: "123405704419",
+            appId: "1:123405704419:web:d9ff94c5407e24a1fef9d6",
+            measurementId: "G-BJRHD7FB2P"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth(); const db = firebase.firestore();
+        let isLoginMode = true; let currentUser = null; let playerName = "นายกฯมือใหม่"; 
+
+        // ADMIN VARIABLES
+        let adminBuildSpeed = 1.0;
+        let adminIncomeSpeed = 1.0;
+
+        function generateRandomName() {
+            try { if(audioCtx && !isSfxMuted) sfx.click(); } catch(e){}
+            const adjs = ["ไฟแรง", "รวย", "ขยัน", "สายชิล", "มหาเศรษฐี", "สุดหล่อ", "อินดี้", "นำโชค", "เทพ", "สุดปัง", "นักลงทุน"];
+            const nouns = ["นายกฯ", "เถ้าแก่", "ผู้รับเหมา", "นายทุน", "เสี่ย", "นักสร้าง", "CEO"];
+            document.getElementById('auth-name').value = `${nouns[Math.floor(Math.random()*nouns.length)]}${adjs[Math.floor(Math.random()*adjs.length)]}_${Math.floor(Math.random()*999)+1}`;
+        }
+        function toggleAuthMode() {
+            isLoginMode = !isLoginMode;
+            document.getElementById('auth-title').innerText = isLoginMode ? "เข้าสู่ระบบ" : "สมัครสมาชิกร่วมลงทุน";
+            document.getElementById('btn-login').classList.toggle('hidden', !isLoginMode);
+            document.getElementById('btn-register').classList.toggle('hidden', isLoginMode);
+            document.getElementById('auth-switch-text').innerText = isLoginMode ? "ยังไม่มีบัญชีใช่ไหม? สมัครสมาชิก" : "มีบัญชีอยู่แล้ว? เข้าสู่ระบบ";
+            document.getElementById('auth-error').classList.add('hidden');
+            document.getElementById('auth-name-container').classList.toggle('hidden', isLoginMode);
+            if(!isLoginMode && !document.getElementById('auth-name').value) generateRandomName();
+        }
+        function handleRegister() {
+            const email = document.getElementById('auth-email').value, password = document.getElementById('auth-password').value;
+            let nameInput = document.getElementById('auth-name').value.trim();
+            const errEl = document.getElementById('auth-error');
+            if(!email || !password) { errEl.innerText = "กรุณากรอกข้อมูลให้ครบถ้วน"; errEl.classList.remove('hidden'); return; }
+            if(!nameInput) nameInput = "นายกฯนิรนาม_" + Math.floor(Math.random() * 1000);
+            auth.createUserWithEmailAndPassword(email, password).then((userCredential) => {
+                playerName = nameInput; userCredential.user.updateProfile({ displayName: nameInput }); saveGameData(userCredential.user.uid);
+            }).catch((e) => { errEl.innerText = "เกิดข้อผิดพลาด: " + e.message; errEl.classList.remove('hidden'); });
+        }
+        function handleLogin() {
+            const email = document.getElementById('auth-email').value, password = document.getElementById('auth-password').value;
+            auth.signInWithEmailAndPassword(email, password).catch((e) => {
+                const errEl = document.getElementById('auth-error'); errEl.innerText = "อีเมลหรือรหัสผ่านไม่ถูกต้อง"; errEl.classList.remove('hidden');
+            });
+        }
+        function handleLogout() {
+            const savePromise = saveGameData() || Promise.resolve(); 
+            savePromise.then(() => auth.signOut().then(() => location.reload())).catch(err => auth.signOut().then(() => location.reload()));
+        }
+
+        let boardLogicalSaved = null; let growthLogicalSaved = null;
+        function saveGameData(forceUid = null) {
+            const uid = forceUid || (currentUser ? currentUser.uid : null);
+            if (!uid) { if(!forceUid) showMessage('แจ้งเตือน', 'ไม่พบข้อมูลบัญชี กรุณาล็อกอินใหม่', '⚠️'); return Promise.resolve(); }
+            let currentTotalAssets = (inventory.money || 0) + ((inventory.house || 0) * PRICES.house) + ((inventory.shop || 0) * PRICES.shop) + ((inventory.factory || 0) * PRICES.factory) + ((inventory.hotel || 0) * PRICES.hotel);
+            const saveData = {
+                playerName: playerName, inventory: inventory || {}, totalAssets: currentTotalAssets,
+                ownedPlots: ownedPlots || [], ownedCars: ownedCars || {},
+                ownedMegaPlots: ownedMegaPlots || [], megaBoardLogical: megaBoardLogical || [],
+                ...(isFarmActive && boardLogical && boardLogical.length > 0 ? { boardLogicalStr: JSON.stringify(boardLogical), growthLogicalStr: JSON.stringify(growthLogical) } : {}),
+                lastSaved: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            return db.collection("citySaves").doc(uid).set(saveData, { merge: true }).then(() => { if(!forceUid) showMessage('บันทึกสำเร็จ!', 'ผังเมืองของคุณถูกบันทึกขึ้น Cloud แล้ว', '💾', 3000); }).catch((e) => { if(!forceUid) showMessage('เกิดข้อผิดพลาด!', 'ไม่สามารถบันทึกข้อมูลได้: ' + e.message, '❌'); });
+        }
+        function loadGameData(uid) {
+            return db.collection("citySaves").doc(uid).get().then((doc) => {
+                if (doc.exists) {
+                    const data = doc.data(); playerName = data.playerName || (currentUser && currentUser.displayName) || "นายกฯมือใหม่";
+                    if(data.inventory) inventory = data.inventory; if(data.ownedPlots) ownedPlots = data.ownedPlots;
+                    if(data.ownedCars) { ownedCars.worker_1 = data.ownedCars.worker_1 || 0; }
+                    if(data.ownedMegaPlots) ownedMegaPlots = data.ownedMegaPlots;
+                    if(data.megaBoardLogical) megaBoardLogical = data.megaBoardLogical;
+                    if(data.boardLogicalStr) boardLogicalSaved = JSON.parse(data.boardLogicalStr); if(data.growthLogicalStr) growthLogicalSaved = JSON.parse(data.growthLogicalStr);
+                    document.getElementById('btn-start').innerHTML = '▶️ บริหารเมืองต่อ'; initMenu(); 
+                } else {
+                    if (currentUser && currentUser.displayName) playerName = currentUser.displayName; document.getElementById('btn-start').innerHTML = '▶️ เริ่มสร้างเมือง'; initMenu();
+                }
+            }).catch((e) => {
+                console.error("Firestore Error:", e); if (currentUser && currentUser.displayName) playerName = currentUser.displayName;
+                document.getElementById('btn-start').innerHTML = '▶️ เริ่มสร้างเมือง (โหมดออฟไลน์)'; initMenu();
+            });
+        }
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                currentUser = user; document.getElementById('auth-screen').style.display = 'none';
+                const loadingEl = document.getElementById('loading'); loadingEl.style.display = 'flex'; loadingEl.style.opacity = '1'; loadingEl.innerText = 'กำลังโหลดผังเมืองของคุณ...';
+                loadGameData(user.uid).then(() => { loadingEl.style.display = 'none'; document.getElementById('main-menu').style.display = 'flex'; document.getElementById('user-hud').style.display = 'flex'; }).catch((e) => { loadingEl.style.display = 'none'; document.getElementById('main-menu').style.display = 'flex'; document.getElementById('user-hud').style.display = 'flex'; alert("พบปัญหาการเชื่อมต่อเซฟเกม"); });
+            } else { currentUser = null; document.getElementById('auth-screen').style.display = 'flex'; document.getElementById('main-menu').style.display = 'none'; document.getElementById('user-hud').style.display = 'none'; }
+        });
+
+        // ==========================================
+        // GAME LOGIC & STATE (10x6 3D MAP)
+        // ==========================================
+        const PLOT_SIZE = 7;  
+        const PLOTS_X = 10;     
+        const PLOTS_Z = 6;      
+        
+        const BLOCK_SIZE = 2;   
+        const ROAD_GAP = 4;     
+        const TOTAL_PLOTS = PLOTS_X * PLOTS_Z; 
+
+        function getPlotStart(p) { return p * PLOT_SIZE + Math.floor(p / BLOCK_SIZE) * ROAD_GAP; }
+        function getPlotFromCoord(coord) {
+            let cycleSize = (BLOCK_SIZE * PLOT_SIZE) + ROAD_GAP;
+            let cycleCount = Math.floor(coord / cycleSize);
+            let rem = coord % cycleSize;
+            if (rem >= BLOCK_SIZE * PLOT_SIZE) return -1; // ถนน
+            return cycleCount * BLOCK_SIZE + Math.floor(rem / PLOT_SIZE);
+        }
+
+        const COLS = getPlotStart(PLOTS_X - 1) + PLOT_SIZE; 
+        const ROWS = getPlotStart(PLOTS_Z - 1) + PLOT_SIZE; 
+
+        let ownedPlots = Array(TOTAL_PLOTS).fill(false); ownedPlots[0] = true;
+        const PLOT_PRICES = {}; for(let i = 0; i < TOTAL_PLOTS; i++) PLOT_PRICES[i] = i === 0 ? 0 : 50000 + (i * 3000);
+
+        const PRICES = { house: 12000, shop: 45000, factory: 180000, hotel: 600000 };
+        const SEED_COSTS = { house: 5000, shop: 15000, factory: 50000, hotel: 150000 };
+        let inventory = { money: 1000000, house: 0, shop: 0, factory: 0, hotel: 0 };
+        
+        let isInMenu = true; let isFarmActive = false; let isPaused = false; let isPanelOpen = false;
+        const CAR_TYPES = { worker_1: { id: 'worker_1', name: 'ช่างก่อสร้าง', cost: 1500, speed: 1.0, color: 0xf97316, icon: '👷‍♂️', isTemp: true } };
+        let ownedCars = { worker_1: 0 }; let activeCars = [];
+        let boardLogical = []; let growthLogical = []; let labelGrid = []; let rentCooldown = []; let rentAppearTime = [];  
+        let selectedPlotIndex = null; let buyingPlotIndex = null;
+        let plotMeshes = []; let plotFences = [];    
+
+        // ==========================================
+        // MEGA PLOT SYSTEM (6 แปลงใหญ่)
+        // ==========================================
+        let ownedMegaPlots = Array(6).fill(false);
+        let megaBoardLogical = Array(6).fill('empty');
+        let megaPlotMeshes = []; 
+        let megaFences = [];
+        let selectedMegaPlotIndex = null;
+
+        const MEGA_CENTERS = [
+            { x: -11, z: 7, name: 'ฝั่งตะวันตก (เหนือ)' }, { x: -11, z: 25, name: 'ฝั่งตะวันตก (กลาง)' }, { x: -11, z: 43, name: 'ฝั่งตะวันตก (ใต้)' },
+            { x: 97, z: 7, name: 'ฝั่งตะวันออก (เหนือ)' }, { x: 97, z: 25, name: 'ฝั่งตะวันออก (กลาง)' }, { x: 97, z: 43, name: 'ฝั่งตะวันออก (ใต้)' }
+        ];
+
+        const MEGA_PROJECTS = {
+            school: { name: 'โรงเรียน', cost: 1000000, icon: '🏫' },
+            hospital: { name: 'โรงพยาบาล', cost: 2000000, icon: '🏥' },
+            transport: { name: 'สถานีขนส่ง', cost: 3000000, icon: '🚌' },
+            zoo: { name: 'สวนสัตว์', cost: 4000000, icon: '🦁' },
+            airport: { name: 'สนามบิน', cost: 10000000, icon: '✈️' }
+        };
+
+        let isShowCropPercentage = true;
+        const plotNames = Array.from({length: TOTAL_PLOTS}, (_, i) => `พื้นที่ก่อสร้างโซน ${i+1}`);
+        const colorDay = new THREE.Color(0x87CEEB); let gameTime = 0;
+
+        // ระบบแจ้งเตือนเมือง (Flags)
+        let alertFlags = { happiness: false, hunger: false, wealth: false };
+        let lastAlertTime = 0;
+
+        // ==========================================
+        // UI FUNCTIONS & ADMIN
+        // ==========================================
+        function initMenu() {
+            document.getElementById('menu-player-name').innerText = playerName; document.getElementById('menu-money').innerText = inventory.money.toLocaleString();
+            if (isFarmActive) { document.getElementById('resume-container').classList.remove('hidden'); document.getElementById('start-btn-group').classList.add('hidden'); }
+            else { document.getElementById('resume-container').classList.add('hidden'); document.getElementById('start-btn-group').classList.remove('hidden'); }
+            updateUI();
+        }
+        function startGame() { initAudio(); sfx.click(); isFarmActive = true; showGameScreen(); generateMap(); updateUI(); startPassiveIncome(); }
+        function resumeGame() { initAudio(); sfx.click(); showGameScreen(); startPassiveIncome(); }
+        function showGameScreen() {
+            document.getElementById('main-menu').style.display = 'none'; document.getElementById('canvas-container').style.display = 'block';
+            document.getElementById('btn-toggle-panel').style.display = 'block'; document.getElementById('top-hud').style.display = 'flex'; 
+            document.getElementById('ui-panel').style.display = 'flex'; isInMenu = false;
+            renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix();
+        }
+        
+        // ADMIN FUNCTIONS
+        function openAdminAuth() { sfx.click(); const m = document.getElementById('admin-auth-modal'); m.classList.remove('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-95', 'scale-100'); document.getElementById('admin-password-input').value = ''; }
+        function closeAdminAuth() { sfx.click(); const m = document.getElementById('admin-auth-modal'); m.classList.add('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-100', 'scale-95'); }
+        function checkAdminPassword() {
+            if(document.getElementById('admin-password-input').value === '1471200') {
+                sfx.buy(); closeAdminAuth(); openAdminPanel();
+            } else {
+                sfx.error(); showMessage('รหัสผ่านผิด!', 'คุณไม่ใช่แอดมิน!', '🚫');
+            }
+        }
+        function openAdminPanel() { const m = document.getElementById('admin-panel-modal'); m.classList.remove('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-95', 'scale-100'); }
+        function closeAdminPanel() { sfx.click(); const m = document.getElementById('admin-panel-modal'); m.classList.add('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-100', 'scale-95'); }
+        function adminAddMoney() {
+            const amount = parseInt(document.getElementById('admin-add-money-input').value) || 0;
+            if(amount > 0) {
+                inventory.money += amount;
+                updateUI(); sfx.buy();
+                showMessage('เสกเงินสำเร็จ!', `เพิ่มเงิน ${amount.toLocaleString()} ฿ เข้าคลังเรียบร้อย`, '💰');
+            }
+        }
+        function updateAdminSettings() {
+            adminBuildSpeed = parseFloat(document.getElementById('admin-build-speed').value);
+            document.getElementById('admin-build-speed-val').innerText = adminBuildSpeed.toFixed(1);
+
+            adminIncomeSpeed = parseFloat(document.getElementById('admin-income-speed').value);
+            document.getElementById('admin-income-speed-val').innerText = adminIncomeSpeed.toFixed(1);
+            startPassiveIncome(); // อัปเดตความเร็วเก็บเงินใหม่
+        }
+
+        // SETTINGS FUNCTIONS
+        function openSettings() { sfx.click(); const m = document.getElementById('settings-modal'); m.classList.remove('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-95', 'scale-100'); }
+        function closeSettings() { sfx.click(); const m = document.getElementById('settings-modal'); m.classList.add('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-100', 'scale-95'); }
+        function updateSettings() {
+            const lightVal = parseFloat(document.getElementById('light-slider').value); document.getElementById('light-val').innerText = Math.round((lightVal / 1.2) * 100);
+            if (ambientLight) ambientLight.intensity = lightVal; if (dirLight) dirLight.intensity = lightVal;
+            const bgmVal = parseFloat(document.getElementById('bgm-slider').value); document.getElementById('bgm-val').innerText = Math.round(bgmVal * 100);
+            const bgm = document.getElementById('bgm'); if (bgm) bgm.volume = bgmVal;
+            globalSfxVolume = parseFloat(document.getElementById('sfx-slider').value); document.getElementById('sfx-val').innerText = Math.round(globalSfxVolume * 100);
+        }
+        function toggleCropPercentage() {
+            sfx.click(); isShowCropPercentage = !isShowCropPercentage; const btn = document.getElementById('btn-toggle-percentage');
+            if (isShowCropPercentage) { btn.innerText = 'เปิดอยู่'; btn.className = 'bg-green-600 hover:bg-green-500 px-4 py-1.5 rounded-lg text-white text-sm font-bold transition shadow'; }
+            else { btn.innerText = 'ปิดการแสดงผล'; btn.className = 'bg-red-600 hover:bg-red-500 px-4 py-1.5 rounded-lg text-white text-sm font-bold transition shadow'; for(let z=0; z<ROWS; z++){ for(let x=0; x<COLS; x++){ let label = labelGrid[z]?.[x]; if(label && label._currentDisplay !== 'none') { label.style.display = 'none'; label._currentDisplay = 'none'; } } } }
+        }
+        function openLeaderboard() {
+            sfx.click(); const m = document.getElementById('leaderboard-modal'), lc = document.getElementById('leaderboard-list'), loadingEl = document.getElementById('leaderboard-loading');
+            m.classList.remove('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-95', 'scale-100'); lc.innerHTML = ''; loadingEl.style.display = 'block';
+            db.collection("citySaves").get().then((q) => {
+                loadingEl.style.display = 'none'; if (q.empty) { lc.innerHTML = '<div class="text-center text-slate-400 py-4">ยังไม่มีข้อมูล</div>'; return; }
+                let players = []; q.forEach((doc) => { const d = doc.data(); players.push({ name: d.playerName || 'นิรนาม', money: d.inventory ? (d.inventory.money || 0) : 0 }); });
+                players.sort((a, b) => b.money - a.money); let html = ''; let rank = 1;
+                players.slice(0, 10).forEach((p) => {
+                    let rankIcon = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `<span class="text-slate-400 font-bold w-6 inline-block text-center">${rank}.</span>`;
+                    let bgClass = rank <= 3 ? 'bg-gradient-to-r from-yellow-900/40 to-yellow-700/20 border-yellow-500/50' : 'bg-slate-800/80 border-slate-600';
+                    let textClass = rank <= 3 ? 'text-yellow-400 font-bold' : 'text-white';
+                    html += `<div class="flex justify-between items-center p-3 mb-2 rounded-xl border ${bgClass}"><div class="flex items-center gap-3"><div class="text-2xl">${rankIcon}</div><div class="${textClass} text-lg truncate">${p.name}</div></div><div class="text-green-400 font-bold text-lg">฿ ${p.money.toLocaleString()}</div></div>`;
+                    rank++;
+                }); lc.innerHTML = html;
+            }).catch((e) => { loadingEl.style.display = 'none'; lc.innerHTML = `<div class="text-center text-red-400 py-4">เกิดข้อผิดพลาด: ${e.message}</div>`; });
+        }
+        function closeLeaderboard() { sfx.click(); const m = document.getElementById('leaderboard-modal'); m.classList.add('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-100', 'scale-95'); }
+        function togglePanel() { sfx.click(); const panel = document.getElementById('ui-panel'); isPanelOpen = !isPanelOpen; if (isPanelOpen) panel.classList.remove('-translate-x-full'); else panel.classList.add('-translate-x-full'); }
+        function openHowToPlay() { sfx.click(); const m = document.getElementById('how-to-play-modal'); m.classList.remove('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-95', 'scale-100'); }
+        function closeHowToPlay() { sfx.click(); const m = document.getElementById('how-to-play-modal'); m.classList.add('opacity-0', 'pointer-events-none'); m.children[0].classList.replace('scale-100', 'scale-95'); }
+        function buyCar(key) {
+            const car = CAR_TYPES[key];
+            if (inventory.money >= car.cost) {
+                inventory.money -= car.cost; ownedCars[key]++;
+                if (isFarmActive) {
+                    let carGroup = createWorkerModel(); carGroup.visible = false; scene.add(carGroup);
+                    activeCars.push({ id: Date.now()+Math.random(), type: key, group: carGroup, logicalPos: { x:0, z:0 }, nextStep: null, targetPos: null, speed: car.speed, assignedPlot: null, jobType: 'harvest', targetCrop: null });
+                }
+                updateUI(); sfx.buy(); showMessage('จ้างงานสำเร็จ!', `คุณได้ ${car.name} ${car.icon} พร้อมทำงานแล้ว!`, car.icon);
+            } else { sfx.error(); showMessage('เงินไม่พอ!', `ต้องการเงินเพิ่มอีก <span class="text-red-400">${(car.cost - inventory.money).toLocaleString()} ฿</span>`, '❌'); }
+        }
+
+        // ==========================================
+        // AUDIO & SFX
+        // ==========================================
+        let audioCtx; let isMusicMuted = false; let isSfxMuted = false; let globalSfxVolume = 1.0;
+        function initAudio() {
+            try {
+                if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                const bgm = document.getElementById('bgm'); bgm.volume = parseFloat(document.getElementById('bgm-slider').value);
+                if(!isMusicMuted) { bgm.play().catch(e => { document.body.addEventListener('click', function p() { if(!isMusicMuted) bgm.play(); document.body.removeEventListener('click', p); }, { once: true }); }); }
+            } catch (e) {}
+        }
+        function toggleMusic() {
+            isMusicMuted = !isMusicMuted; const bgm = document.getElementById('bgm'); const btn = document.getElementById('btn-mute-music');
+            if(isMusicMuted) { bgm.pause(); if(btn) { btn.innerHTML = '🎵 ปิดดนตรี'; btn.classList.replace('bg-green-600', 'bg-slate-600'); } }
+            else { bgm.play(); if(btn) { btn.innerHTML = '🎵 เปิดดนตรี'; btn.classList.replace('bg-slate-600', 'bg-green-600'); } } sfx.click();
+        }
+        function toggleSfx() {
+            isSfxMuted = !isSfxMuted; const btn = document.getElementById('btn-mute-sfx');
+            if(isSfxMuted) { if(btn) { btn.innerHTML = '🔇 ปิดเสียง'; btn.classList.replace('bg-green-600', 'bg-slate-600'); } }
+            else { if(btn) { btn.innerHTML = '🔊 เปิดเสียง'; btn.classList.replace('bg-slate-600', 'bg-green-600'); } } sfx.click();
+        }
+        function playTone(freq, type, duration, vol=0.1) {
+            try {
+                if(!audioCtx || isSfxMuted || audioCtx.state === 'suspended' || globalSfxVolume === 0) return;
+                const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+                osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+                gain.gain.setValueAtTime(vol * globalSfxVolume, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain); gain.connect(audioCtx.destination); osc.start(); osc.stop(audioCtx.currentTime + duration);
+            } catch(e) {}
+        }
+        const sfx = {
+            click: () => playTone(600, 'sine', 0.1),
+            buy: () => { playTone(800, 'sine', 0.1); setTimeout(()=>playTone(1200, 'sine', 0.2), 100); },
+            error: () => playTone(150, 'sawtooth', 0.3, 0.2),
+            harvest: () => playTone(300, 'square', 0.1, 0.02),
+            alert: () => { playTone(400, 'square', 0.2); setTimeout(()=>playTone(600, 'square', 0.2), 200); }
+        };
+
+        // ==========================================
+        // THREE.JS SETUP & MODELS
+        // ==========================================
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene(); scene.background = colorDay; scene.fog = new THREE.Fog(0x87CEEB, 30, 150); 
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight); renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; container.appendChild(renderer.domElement);
+
+        let ambientLight = new THREE.AmbientLight(0xffffff, 1.2); scene.add(ambientLight);
+        let dirLight = new THREE.DirectionalLight(0xffffff, 1.2); 
+        dirLight.position.set(30, 80, 30); dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 1024; dirLight.shadow.mapSize.height = 1024; scene.add(dirLight);
+
+        const mineGroup = new THREE.Group(); scene.add(mineGroup);
+        const envGroup = new THREE.Group(); scene.add(envGroup);
+
+        // ==========================================
+        // 3D COIN SYSTEM (ระบบเหรียญ $)
+        // ==========================================
+        const coinGroup = new THREE.Group(); scene.add(coinGroup);
+        let coinGrid = []; 
+
+        function getCoinMaterial() {
+            if (window._coinMat) return window._coinMat;
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#facc15'; ctx.beginPath(); ctx.arc(64, 64, 60, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ca8a04'; ctx.lineWidth = 8; ctx.stroke();
+            ctx.fillStyle = '#b45309'; ctx.font = 'bold 80px sans-serif'; 
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('$', 64, 70);
+            const texture = new THREE.CanvasTexture(canvas);
+            const materials = [
+                new THREE.MeshLambertMaterial({ color: 0xfacc15 }), 
+                new THREE.MeshLambertMaterial({ map: texture }), 
+                new THREE.MeshLambertMaterial({ map: texture })  
+            ];
+            window._coinMat = materials;
+            return materials;
+        }
+
+        // ==========================================
+        // ระบบรถสัญจร (Traffic System)
+        // ==========================================
+        const trafficGroup = new THREE.Group(); scene.add(trafficGroup);
+        let trafficCars = [];
+
+        function createTrafficCar() {
+            const group = new THREE.Group();
+            const colors = [0xef4444, 0x3b82f6, 0xeab308, 0x22c55e, 0xf97316, 0xffffff, 0x94a3b8];
+            const carColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            const matBody = new THREE.MeshLambertMaterial({ color: carColor });
+            const matWindow = new THREE.MeshLambertMaterial({ color: 0x1e293b });
+            const matWheel = new THREE.MeshLambertMaterial({ color: 0x111827 });
+
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.4), matBody);
+            body.position.y = 0.2; body.castShadow = true;
+            
+            const top = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.36), matWindow);
+            top.position.set(-0.05, 0.45, 0); top.castShadow = true;
+
+            const createWheel = (x, z) => {
+                const w = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.1, 8), matWheel);
+                w.rotation.x = Math.PI / 2; w.position.set(x, 0.1, z); return w;
+            };
+            
+            group.add(body, top, createWheel(0.25, 0.22), createWheel(-0.25, 0.22), createWheel(0.25, -0.22), createWheel(-0.25, -0.22));
+            return group;
+        }
+
+        function initTraffic() {
+            while(trafficGroup.children.length > 0) trafficGroup.remove(trafficGroup.children[0]);
+            trafficCars = [];
+            const baseSpeed = 6; 
+
+            for (let pZ = BLOCK_SIZE; pZ < PLOTS_Z; pZ += BLOCK_SIZE) {
+                let roadZ = getPlotStart(pZ) - ROAD_GAP;
+                let centerZ = roadZ + ROAD_GAP/2 - 0.5;
+                
+                for(let i=0; i<3; i++) { 
+                    let car1 = createTrafficCar();
+                    car1.position.set(Math.random() * COLS, 0, centerZ - 1.2);
+                    car1.rotation.y = Math.PI; 
+                    trafficGroup.add(car1);
+                    trafficCars.push({ group: car1, vx: -baseSpeed - Math.random()*3, vz: 0 });
+
+                    let car2 = createTrafficCar();
+                    car2.position.set(Math.random() * COLS, 0, centerZ + 1.2);
+                    car2.rotation.y = 0; 
+                    trafficGroup.add(car2);
+                    trafficCars.push({ group: car2, vx: baseSpeed + Math.random()*3, vz: 0 });
+                }
+            }
+
+            for (let pX = BLOCK_SIZE; pX < PLOTS_X; pX += BLOCK_SIZE) {
+                let roadX = getPlotStart(pX) - ROAD_GAP;
+                let centerX = roadX + ROAD_GAP/2 - 0.5;
+                
+                for(let i=0; i<2; i++) { 
+                    let car1 = createTrafficCar();
+                    car1.position.set(centerX - 1.2, 0, Math.random() * ROWS);
+                    car1.rotation.y = -Math.PI / 2; 
+                    trafficGroup.add(car1);
+                    trafficCars.push({ group: car1, vx: 0, vz: -baseSpeed - Math.random()*3 });
+
+                    let car2 = createTrafficCar();
+                    car2.position.set(centerX + 1.2, 0, Math.random() * ROWS);
+                    car2.rotation.y = Math.PI / 2; 
+                    trafficGroup.add(car2);
+                    trafficCars.push({ group: car2, vx: 0, vz: baseSpeed + Math.random()*3 });
+                }
+            }
+        }
+
+        const bMats = {
+            houseWall: new THREE.MeshLambertMaterial({ color: 0xf1f5f9 }),
+            houseRoof: new THREE.MeshLambertMaterial({ color: 0xef4444 }),
+            shopWall: new THREE.MeshLambertMaterial({ color: 0x38bdf8 }),
+            shopRoof: new THREE.MeshLambertMaterial({ color: 0x0f172a }),
+            factoryWall: new THREE.MeshLambertMaterial({ color: 0x64748b }),
+            chimney: new THREE.MeshLambertMaterial({ color: 0x334155 }),
+            hotelWall: new THREE.MeshLambertMaterial({ color: 0xfde047 }),
+            hotelRoof: new THREE.MeshLambertMaterial({ color: 0x475569 }),
+            door: new THREE.MeshLambertMaterial({ color: 0x8b4513 }),    
+            window: new THREE.MeshLambertMaterial({ color: 0x93c5fd })   
+        };
+
+        const ground = new THREE.Mesh(new THREE.PlaneGeometry(500, 500), new THREE.MeshLambertMaterial({ color: 0x22c55e }));
+        ground.rotation.x = -Math.PI / 2; ground.position.set(COLS/2, 0, ROWS/2); ground.receiveShadow = true; scene.add(ground);
+
+        function createMountains() {
+            const mountainGroup = new THREE.Group();
+            const mat1 = new THREE.MeshLambertMaterial({ color: 0x475569 }); 
+            const mat2 = new THREE.MeshLambertMaterial({ color: 0x334155 }); 
+            
+            for(let i=0; i<80; i++) {
+                let angle = (i / 80) * Math.PI * 2 + (Math.random() * 0.1);
+                let radius = 110 + Math.random() * 50; 
+                let x = COLS/2 + Math.cos(angle) * radius;
+                let z = ROWS/2 + Math.sin(angle) * radius;
+                let originalH = 20 + Math.random() * 40;
+                let h = originalH * 0.1; 
+                let w = 20 + Math.random() * 20;
+                let base = new THREE.Mesh(new THREE.ConeGeometry(w, h, 6), Math.random() > 0.5 ? mat1 : mat2);
+                
+                base.position.set(x, h/2, z);
+                base.rotation.y = Math.random() * Math.PI;
+                base.castShadow = true; 
+                base.receiveShadow = true;
+                mountainGroup.add(base);
+            }
+            return mountainGroup;
+        }
+		
+        const mountains = createMountains(); scene.add(mountains);
+		
+        function createFoothillForest() {
+            const forestGroup = new THREE.Group();
+            const treeCount = 400; 
+            
+            for(let i = 0; i < treeCount; i++) {
+                let angle = Math.random() * Math.PI * 2;
+                let radius = 65 + Math.random() * 40; 
+                let x = COLS/2 + Math.cos(angle) * radius;
+                let z = ROWS/2 + Math.sin(angle) * radius;
+                let tree = createTree();
+                
+                tree.position.set(x, 0.1, z);
+                let scale = 0.8 + Math.random() * 0.7;
+                tree.scale.set(scale, scale, scale);
+                tree.rotation.y = Math.random() * Math.PI;
+                
+                forestGroup.add(tree);
+            }
+            return forestGroup;
+        }
+        
+        const foothillForest = createFoothillForest();
+        scene.add(foothillForest);
+
+        function createTree() {
+            const group = new THREE.Group();
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.5), new THREE.MeshLambertMaterial({color: 0x78350f}));
+            trunk.position.y = 0.25; trunk.castShadow = true;
+            const leaves = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1, 8), new THREE.MeshLambertMaterial({color: 0x14532d}));
+            leaves.position.y = 0.75; leaves.castShadow = true;
+            group.add(trunk, leaves);
+            return group;
+        }
+
+        // ==========================================
+        // MODELS: แปลงใหญ่ (MEGA PROJECTS)
+        // ==========================================
+        function createMegaPlotFence(isOwned) {
+            const group = new THREE.Group();
+            const fenceColor = isOwned ? 0xf8fafc : 0x475569; const railColor = isOwned ? 0xf8fafc : 0xb91c1c; 
+            const postMat = new THREE.MeshLambertMaterial({ color: fenceColor }); const railMat = new THREE.MeshLambertMaterial({ color: railColor });
+            const plotW = 13.8; const halfW = plotW / 2; const height = 0.4; const thickness = 0.15;
+            const yPos = 0.25; 
+            const r1 = new THREE.Mesh(new THREE.BoxGeometry(plotW, 0.08, thickness/2), railMat); r1.position.set(0, yPos, halfW); r1.castShadow = true;
+            const r2 = new THREE.Mesh(new THREE.BoxGeometry(plotW, 0.08, thickness/2), railMat); r2.position.set(0, yPos, -halfW); r2.castShadow = true;
+            const r3 = new THREE.Mesh(new THREE.BoxGeometry(thickness/2, 0.08, plotW), railMat); r3.position.set(halfW, yPos, 0); r3.castShadow = true;
+            const r4 = new THREE.Mesh(new THREE.BoxGeometry(thickness/2, 0.08, plotW), railMat); r4.position.set(-halfW, yPos, 0); r4.castShadow = true;
+            group.add(r1, r2, r3, r4);
+            const postGeo = new THREE.BoxGeometry(0.25, height, 0.25); const step = plotW / 6;
+            for(let i=0; i<=6; i++) {
+                const px = -halfW + (i * step);
+                const p1 = new THREE.Mesh(postGeo, postMat); p1.position.set(px, height/2, halfW); p1.castShadow = true;
+                const p2 = new THREE.Mesh(postGeo, postMat); p2.position.set(px, height/2, -halfW); p2.castShadow = true;
+                group.add(p1, p2);
+                if (i > 0 && i < 6) {
+                    const p3 = new THREE.Mesh(postGeo, postMat); p3.position.set(halfW, height/2, px); p3.castShadow = true;
+                    const p4 = new THREE.Mesh(postGeo, postMat); p4.position.set(-halfW, height/2, px); p4.castShadow = true;
+                    group.add(p3, p4);
+                }
+            } return group;
+        }
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		// ==========================================
+        // MODELS: แปลงใหญ่ (MEGA PROJECTS)
+        // ==========================================
+        function createMegaBuilding(type) {
+            const group = new THREE.Group();
+            
+            // วัสดุพื้นฐาน
+            const matGray = new THREE.MeshLambertMaterial({ color: 0x9ca3af });
+            const matDarkGray = new THREE.MeshLambertMaterial({ color: 0x4b5563 });
+            const matBlue = new THREE.MeshLambertMaterial({ color: 0x3b82f6 });
+            const matWhite = new THREE.MeshLambertMaterial({ color: 0xf8fafc });
+            const matRed = new THREE.MeshLambertMaterial({ color: 0xef4444 });
+            const matGreen = new THREE.MeshLambertMaterial({ color: 0x22c55e });
+            const matGlass = new THREE.MeshLambertMaterial({ color: 0x7dd3fc });
+
+            if (type === 'school') {
+                const matWall = new THREE.MeshLambertMaterial({ color: 0xffeab3 }); 
+                const matRoof = new THREE.MeshLambertMaterial({ color: 0xe03c31 }); 
+                const matWinFrame = new THREE.MeshLambertMaterial({ color: 0xd4a373 }); 
+                const matWinGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); 
+                const matDoor = new THREE.MeshLambertMaterial({ color: 0x1e3a8a }); 
+                const matSign = new THREE.MeshLambertMaterial({ color: 0xffffff }); 
+                const matFlag = new THREE.MeshLambertMaterial({ color: 0x2563eb }); 
+                const matBush = new THREE.MeshLambertMaterial({ color: 0x65a30d }); 
+                const matTree = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(12, 0.3, 6), matGray);
+                base.position.set(0, 0.15, 0); base.castShadow = true; group.add(base);
+
+                const centerWall = new THREE.Mesh(new THREE.BoxGeometry(4.5, 5, 4.5), matWall);
+                centerWall.position.set(0, 2.8, 0.5); centerWall.castShadow = true; group.add(centerWall);
+
+                const centerRoof = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 3.8, 2.5, 4), matRoof);
+                centerRoof.rotation.y = Math.PI / 4; centerRoof.position.set(0, 6.5, 0.5); centerRoof.castShadow = true; group.add(centerRoof);
+
+                const sideWallGeo = new THREE.BoxGeometry(3.8, 3.8, 3.5);
+                const leftWall = new THREE.Mesh(sideWallGeo, matWall); leftWall.position.set(-4, 2.2, 0); leftWall.castShadow = true;
+                const rightWall = new THREE.Mesh(sideWallGeo, matWall); rightWall.position.set(4, 2.2, 0); rightWall.castShadow = true;
+                group.add(leftWall, rightWall);
+
+                const sideRoofGeo = new THREE.CylinderGeometry(0.2, 3.2, 2, 4);
+                const leftRoof = new THREE.Mesh(sideRoofGeo, matRoof); leftRoof.rotation.y = Math.PI / 4; leftRoof.position.set(-4, 5.1, 0); leftRoof.castShadow = true;
+                const rightRoof = new THREE.Mesh(sideRoofGeo, matRoof); rightRoof.rotation.y = Math.PI / 4; rightRoof.position.set(4, 5.1, 0); rightRoof.castShadow = true;
+                group.add(leftRoof, rightRoof);
+
+                const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.8, 0.1), matWinFrame); doorFrame.position.set(0, 1.2, 2.75);
+                const door1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.6, 0.2), matDoor); door1.position.set(-0.5, 1.2, 2.75);
+                const door2 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 1.6, 0.2), matDoor); door2.position.set(0.5, 1.2, 2.75);
+                group.add(doorFrame, door1, door2);
+
+                const step1 = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 0.6), matGray); step1.position.set(0, 0.4, 3);
+                const step2 = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.2, 0.6), matGray); step2.position.set(0, 0.2, 3.4);
+                group.add(step1, step2);
+
+                const signBg = new THREE.Mesh(new THREE.BoxGeometry(3, 0.8, 0.2), matSign); signBg.position.set(0, 2.5, 2.8); signBg.castShadow = true;
+                const signText = new THREE.Mesh(new THREE.BoxGeometry(2, 0.2, 0.25), matDoor); signText.position.set(0, 2.5, 2.8); 
+                group.add(signBg, signText);
+
+                const createWin = (x, y, z) => {
+                    const wg = new THREE.Group();
+                    const f = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.1), matWinFrame);
+                    const g1 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1, 0.2), matWinGlass); g1.position.set(-0.25, 0, 0);
+                    const g2 = new THREE.Mesh(new THREE.BoxGeometry(0.45, 1, 0.2), matWinGlass); g2.position.set(0.25, 0, 0);
+                    wg.add(f, g1, g2); wg.position.set(x, y, z); return wg;
+                };
+                group.add(createWin(-4, 1.5, 1.75)); group.add(createWin(-4, 3.2, 1.75)); 
+                group.add(createWin(4, 1.5, 1.75)); group.add(createWin(4, 3.2, 1.75)); 
+                group.add(createWin(-1.2, 3.8, 2.75)); group.add(createWin(1.2, 3.8, 2.75));
+
+                const clockBg = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.1, 16), matSign); clockBg.rotation.x = Math.PI / 2; clockBg.position.set(0, 5, 2.75);
+                const clockHand1 = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.3, 0.15), matDarkGray); clockHand1.position.set(0, 5.1, 2.75);
+                const clockHand2 = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.05, 0.15), matDarkGray); clockHand2.position.set(0.1, 5, 2.75);
+                group.add(clockBg, clockHand1, clockHand2);
+
+                const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 3), matDarkGray); pole.position.set(0, 8.5, 0.5);
+                const flag = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1, 0.05), matFlag); flag.position.set(0.75, 9.5, 0.5);
+                group.add(pole, flag);
+
+                const createBush = (x, z, r=0.6) => { const b = new THREE.Mesh(new THREE.DodecahedronGeometry(r), matBush); b.position.set(x, r-0.1, z); b.castShadow = true; return b; };
+                group.add(createBush(-2.8, 2.2, 0.8)); group.add(createBush(-4.5, 2.2, 0.6));
+                group.add(createBush(2.8, 2.2, 0.8));  group.add(createBush(4.5, 2.2, 0.6));
+                group.add(createBush(-6, 1.8, 0.7));   group.add(createBush(6, 1.8, 0.7));
+
+                const treeTrunk = new THREE.MeshLambertMaterial({color: 0x78350f});
+                const createSchoolTree = (x, z) => {
+                    const tg = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.5), treeTrunk); trunk.position.y = 0.75; trunk.castShadow = true;
+                    const leaf1 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.4), matTree); leaf1.position.y = 2.2; leaf1.castShadow = true;
+                    const leaf2 = new THREE.Mesh(new THREE.DodecahedronGeometry(1), matTree); leaf2.position.set(0.6, 2.8, 0); leaf2.castShadow = true;
+                    tg.add(trunk, leaf1, leaf2); tg.position.set(x, 0, z); return tg;
+                };
+                group.add(createSchoolTree(-6.5, 0)); group.add(createSchoolTree(6.5, 0));
+                
+            } 
+            else if (type === 'hospital') {
+                const matHWall = new THREE.MeshLambertMaterial({ color: 0xe5e7eb }); 
+                const matHRoof = new THREE.MeshLambertMaterial({ color: 0x9ca3af }); 
+                const matHGreen = new THREE.MeshLambertMaterial({ color: 0x16a34a }); 
+                const matHGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); 
+                const matHFrame = new THREE.MeshLambertMaterial({ color: 0xf3f4f6 }); 
+                const matWood = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); 
+                const matBush = new THREE.MeshLambertMaterial({ color: 0x65a30d }); 
+                const matTree = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(11, 0.3, 8), matHRoof); base.position.set(0, 0.15, 0); base.castShadow = true; group.add(base);
+
+                const mainBldg = new THREE.Mesh(new THREE.BoxGeometry(9, 5, 5), matHWall); mainBldg.position.set(0, 2.65, 0); mainBldg.castShadow = true; group.add(mainBldg);
+                const centerBldg = new THREE.Mesh(new THREE.BoxGeometry(4.5, 6, 6), matHWall); centerBldg.position.set(0, 3.15, 0.5); centerBldg.castShadow = true; group.add(centerBldg);
+
+                const centerArch = new THREE.Mesh(new THREE.CylinderGeometry(2.25, 2.25, 6, 16), matHWall);
+                centerArch.rotation.x = Math.PI / 2; centerArch.rotation.z = Math.PI / 2; centerArch.position.set(0, 6.15, 0.5); centerArch.castShadow = true; group.add(centerArch);
+
+                const crossV = new THREE.Mesh(new THREE.BoxGeometry(0.8, 2.2, 0.2), matHGreen); crossV.position.set(0, 5.5, 3.55);
+                const crossH = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 0.2), matHGreen); crossH.position.set(0, 5.5, 3.55); group.add(crossV, crossH);
+
+                const sign = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1, 0.3), matHGreen); sign.position.set(0, 3.2, 3.6); sign.castShadow = true; group.add(sign);
+
+                const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.2, 0.1), matHFrame); doorFrame.position.set(0, 1.4, 3.55);
+                const doorL = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 0.15), matHGlass); doorL.position.set(-0.65, 1.4, 3.55);
+                const doorR = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2, 0.15), matHGlass); doorR.position.set(0.65, 1.4, 3.55); group.add(doorFrame, doorL, doorR);
+
+                const ramp = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.2, 3), matHWall); ramp.rotation.x = Math.PI / 12; ramp.position.set(0, 0.5, 4.8); ramp.castShadow = true; group.add(ramp);
+                const rampEdgeL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 3), matHRoof); rampEdgeL.rotation.x = Math.PI / 12; rampEdgeL.position.set(-1.4, 0.7, 4.8);
+                const rampEdgeR = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.6, 3), matHRoof); rampEdgeR.rotation.x = Math.PI / 12; rampEdgeR.position.set(1.4, 0.7, 4.8); group.add(rampEdgeL, rampEdgeR);
+
+                const createWin = (x, y, z) => {
+                    const wg = new THREE.Group();
+                    const f = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 0.1), matHFrame);
+                    const g1 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, 0.15), matHGlass); g1.position.set(-0.35, 0, 0);
+                    const g2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.4, 0.15), matHGlass); g2.position.set(0.35, 0, 0);
+                    const awning = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.4), matHWall); awning.position.set(0, 0.85, 0.15); awning.castShadow = true;
+                    wg.add(f, g1, g2, awning); wg.position.set(x, y, z); return wg;
+                };
+                group.add(createWin(-3.2, 1.6, 2.5)); group.add(createWin(-3.2, 3.8, 2.5));
+                group.add(createWin(3.2, 1.6, 2.5));  group.add(createWin(3.2, 3.8, 2.5));
+
+                const acBox = new THREE.Mesh(new THREE.BoxGeometry(2.5, 1.5, 2.5), matDarkGray); acBox.position.set(2.5, 5.9, -0.5); acBox.castShadow = true;
+                const acFan = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.1, 12), matHRoof); acFan.position.set(2.5, 6.66, -0.5); group.add(acBox, acFan);
+                const chimney = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 8), matDarkGray); chimney.position.set(-3, 5.6, -1); group.add(chimney);
+
+                const createBush = (x, y, z, size) => { const b = new THREE.Mesh(new THREE.DodecahedronGeometry(size), matBush); b.position.set(x, y, z); b.castShadow = true; return b; };
+                group.add(createBush(-4.5, 0.6, 3, 0.5)); group.add(createBush(-3.5, 0.7, 3.2, 0.6));
+                group.add(createBush(3.5, 0.6, 3.2, 0.5)); group.add(createBush(4.5, 0.8, 3, 0.7));
+                
+                const treeTrunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.5), matWood); treeTrunk.position.set(4.5, 1, 1);
+                const treeLeaves = new THREE.Mesh(new THREE.DodecahedronGeometry(1.5), matTree); treeLeaves.position.set(4.5, 2.5, 1); group.add(treeTrunk, treeLeaves);
+
+                const benchSeat = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.6), matWood); benchSeat.position.set(-3.5, 0.7, 4.5);
+                const benchBack = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.6, 0.1), matWood); benchBack.position.set(-3.5, 1, 4.2);
+                const benchLeg1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.5), matDarkGray); benchLeg1.position.set(-4.2, 0.45, 4.5);
+                const benchLeg2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.5), matDarkGray); benchLeg2.position.set(-2.8, 0.45, 4.5);
+                group.add(benchSeat, benchBack, benchLeg1, benchLeg2);
+            }
+            else if (type === 'airport') {
+                const matAWall = new THREE.MeshLambertMaterial({ color: 0xe5e7eb }); 
+                const matARoofBlue = new THREE.MeshLambertMaterial({ color: 0x1e40af }); 
+                const matAAsphalt = new THREE.MeshLambertMaterial({ color: 0x374151 }); 
+                const matAGlass = new THREE.MeshLambertMaterial({ color: 0x38bdf8 }); 
+                const matASign = new THREE.MeshLambertMaterial({ color: 0x1e3a8a }); 
+                const matAWhite = new THREE.MeshLambertMaterial({ color: 0xffffff }); 
+                const matAYellow = new THREE.MeshLambertMaterial({ color: 0xfacc15 }); 
+                const matAHedge = new THREE.MeshLambertMaterial({ color: 0x22c55e }); 
+                const matATree = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+                const matATrunk = new THREE.MeshLambertMaterial({ color: 0x78350f }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(13, 0.2, 13), matAAsphalt);
+                base.position.set(0, 0.1, 0); base.castShadow = true; base.receiveShadow = true; group.add(base);
+
+                const mainWall = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 5), matAWall); mainWall.position.set(0, 1.6, -2); mainWall.castShadow = true; group.add(mainWall);
+
+                const curvedRoof = new THREE.Mesh(new THREE.CylinderGeometry(3, 3, 5.2, 16, 1, false, 0, Math.PI), matARoofBlue);
+                curvedRoof.rotation.z = Math.PI / 2; curvedRoof.rotation.x = Math.PI / 2; curvedRoof.position.set(0, 3.1, -2); curvedRoof.castShadow = true; group.add(curvedRoof);
+
+                const facade = new THREE.Mesh(new THREE.BoxGeometry(5.6, 2.8, 0.2), matAGlass); facade.position.set(0, 1.5, 0.6); group.add(facade);
+
+                const canopy = new THREE.Mesh(new THREE.BoxGeometry(3, 0.2, 1.5), matARoofBlue); canopy.position.set(0, 1.5, 1.3); canopy.rotation.x = Math.PI / 12; canopy.castShadow = true;
+                const pillar1 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5), matAWall); pillar1.position.set(-1.2, 0.75, 1.8);
+                const pillar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 1.5), matAWall); pillar2.position.set(1.2, 0.75, 1.8);
+                group.add(canopy, pillar1, pillar2);
+
+                const sign = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.8, 0.3), matASign); sign.position.set(0, 3, 0.6); sign.castShadow = true; group.add(sign);
+
+                const heliPlat = new THREE.Mesh(new THREE.BoxGeometry(3.5, 0.2, 3.5), matAWall); heliPlat.position.set(0, 3.8, -2);
+                const heliRing = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.25, 16), matAAsphalt); heliRing.position.set(0, 3.8, -2);
+                const heliH1 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 1.2), matAYellow); heliH1.position.set(-0.4, 3.8, -2);
+                const heliH2 = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.3, 1.2), matAYellow); heliH2.position.set(0.4, 3.8, -2);
+                const heliH3 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.3, 0.2), matAYellow); heliH3.position.set(0, 3.8, -2);
+                group.add(heliPlat, heliRing, heliH1, heliH2, heliH3);
+
+                const towerBase = new THREE.Mesh(new THREE.BoxGeometry(2, 6, 2), matAWall); towerBase.position.set(4, 3.1, -3); towerBase.castShadow = true;
+                const towerDeck = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.0, 1.2, 8), matAGlass); towerDeck.position.set(4, 6.7, -3);
+                const towerRoof = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.3, 8), matAAsphalt); towerRoof.position.set(4, 7.4, -3);
+                const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.5), matAWhite); antenna.position.set(4, 8.1, -3);
+                const dish1 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.2), matAWhite); dish1.position.set(3.7, 7.8, -2.8); dish1.rotation.y = -Math.PI / 4;
+                const dish2 = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.2), matAWhite); dish2.position.set(4.3, 7.8, -2.8); dish2.rotation.y = Math.PI / 4;
+                group.add(towerBase, towerDeck, towerRoof, antenna, dish1, dish2);
+
+                const sideBldg = new THREE.Mesh(new THREE.BoxGeometry(3, 2.5, 4), matAWall); sideBldg.position.set(-4.5, 1.35, -2); sideBldg.castShadow = true;
+                const sideRoof = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.2, 4.2), matAAsphalt); sideRoof.position.set(-4.5, 2.7, -2);
+                group.add(sideBldg, sideRoof);
+
+                const smallHeliRing = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 0.3, 16), matAAsphalt); smallHeliRing.position.set(-4.5, 2.7, -2);
+                const sH1 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, 0.8), matAWhite); sH1.position.set(-4.8, 2.7, -2);
+                const sH2 = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.35, 0.8), matAWhite); sH2.position.set(-4.2, 2.7, -2);
+                const sH3 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.35, 0.15), matAWhite); sH3.position.set(-4.5, 2.7, -2);
+                group.add(smallHeliRing, sH1, sH2, sH3);
+
+                for(let i = -3; i <= 3; i+=2) { const line = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.25, 2), matAWhite); line.position.set(i, 0.1, 4); group.add(line); }
+                
+                const hedge1 = new THREE.Mesh(new THREE.BoxGeometry(12, 0.6, 0.6), matAHedge); hedge1.position.set(0, 0.4, -4.8);
+                const hedge2 = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.6, 5), matAHedge); hedge2.position.set(-6.2, 0.4, -2.5);
+                const hedge3 = new THREE.Mesh(new THREE.BoxGeometry(3, 0.6, 0.6), matAHedge); hedge3.position.set(-3, 0.4, 1);
+                const hedge4 = new THREE.Mesh(new THREE.BoxGeometry(3, 0.6, 0.6), matAHedge); hedge4.position.set(3, 0.4, 1);
+                group.add(hedge1, hedge2, hedge3, hedge4);
+
+                const createAirportTree = (x, z) => {
+                    const tg = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 1), matATrunk); trunk.position.y = 0.6; trunk.castShadow = true;
+                    const leaf1 = new THREE.Mesh(new THREE.ConeGeometry(0.8, 1.5, 8), matATree); leaf1.position.y = 1.5; leaf1.castShadow = true;
+                    const leaf2 = new THREE.Mesh(new THREE.ConeGeometry(0.6, 1.2, 8), matATree); leaf2.position.y = 2.2; leaf2.castShadow = true;
+                    tg.add(trunk, leaf1, leaf2); tg.position.set(x, 0, z); return tg;
+                };
+                group.add(createAirportTree(-5.5, 0)); group.add(createAirportTree(5.5, -1));
+
+                const createCar = (x, z, colorMat) => {
+                    const cg = new THREE.Group();
+                    const cBody = new THREE.Mesh(new THREE.BoxGeometry(1, 0.4, 1.8), colorMat); cBody.position.y = 0.3; cBody.castShadow = true;
+                    const cTop = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 1), matAGlass); cTop.position.set(0, 0.65, -0.1); cTop.castShadow = true;
+                    cg.add(cBody, cTop); cg.position.set(x, 0, z); return cg;
+                };
+                const car1 = createCar(-2, 4, matAYellow); car1.rotation.y = Math.PI / 2; group.add(car1);
+                const car2 = createCar(2, 4, matAWhite); car2.rotation.y = -Math.PI / 4; group.add(car2);
+            }
+            else if (type === 'transport') {
+                const matTWall = new THREE.MeshLambertMaterial({ color: 0xe5e7eb }); 
+                const matTRoof = new THREE.MeshLambertMaterial({ color: 0x4b6cb7 }); 
+                const matTGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); 
+                const matTBase = new THREE.MeshLambertMaterial({ color: 0x6b7280 }); 
+                const matTSign = new THREE.MeshLambertMaterial({ color: 0x1e3a8a }); 
+                const matTWhite = new THREE.MeshLambertMaterial({ color: 0xf8fafc }); 
+                const matTOrange = new THREE.MeshLambertMaterial({ color: 0xf97316 }); 
+                const matTBlueBus = new THREE.MeshLambertMaterial({ color: 0x2563eb }); 
+                const matTBlack = new THREE.MeshLambertMaterial({ color: 0x1f2937 }); 
+                const matTWood = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); 
+                const matTGreen = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+                const matTPot = new THREE.MeshLambertMaterial({ color: 0xb45309 }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(13, 0.2, 11), matTBase);
+                base.position.set(0, 0.1, -1); base.castShadow = true; base.receiveShadow = true; group.add(base);
+
+                const mainWall = new THREE.Mesh(new THREE.BoxGeometry(6, 3, 5), matTWall); mainWall.position.set(-2.5, 1.6, -3); mainWall.castShadow = true;
+                
+                const roofGeom = new THREE.CylinderGeometry(3.2, 3.2, 6.4, 16, 1, false, 0, Math.PI);
+                const mainRoof = new THREE.Mesh(roofGeom, matTRoof); mainRoof.rotation.z = Math.PI / 2; mainRoof.rotation.x = Math.PI / 2; mainRoof.position.set(-2.5, 3.1, -3); mainRoof.castShadow = true;
+
+                const mainGlass = new THREE.Mesh(new THREE.BoxGeometry(5.8, 2.8, 0.2), matTGlass); mainGlass.position.set(-2.5, 1.5, -0.4);
+                const sign = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.8, 0.3), matTSign); sign.position.set(-2.5, 2.5, -0.3); sign.castShadow = true;
+                group.add(mainWall, mainRoof, mainGlass, sign);
+
+                const sideRoof = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.3, 5.5), matTRoof); sideRoof.position.set(3.5, 2.5, -2.75); sideRoof.castShadow = true; group.add(sideRoof);
+
+                const createPillar = (x, z) => { const p = new THREE.Mesh(new THREE.BoxGeometry(0.4, 2.3, 0.4), matTWall); p.position.set(x, 1.35, z); p.castShadow = true; return p; }
+                group.add(createPillar(1, -0.2), createPillar(3.5, -0.2), createPillar(6, -0.2));
+                group.add(createPillar(1, -5.3), createPillar(3.5, -5.3), createPillar(6, -5.3));
+
+                const createBench = (x, z) => {
+                    const b = new THREE.Group();
+                    const seat = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.5), matTWood); seat.position.set(0, 0.4, 0); seat.castShadow = true;
+                    const back = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.5, 0.1), matTWood); back.position.set(0, 0.65, -0.2); back.castShadow = true;
+                    const leg1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.4, 0.4), matTBlack); leg1.position.set(-0.6, 0.2, 0);
+                    const leg2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.4, 0.4), matTBlack); leg2.position.set(0.6, 0.2, 0);
+                    b.add(seat, back, leg1, leg2); b.position.set(x, 0, z); return b;
+                };
+                group.add(createBench(2.5, -1.5), createBench(4.5, -1.5)); group.add(createBench(2.5, -3.5), createBench(4.5, -3.5));
+
+                for(let x = -5; x <= 5; x+=3) { const line = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 4), matTWhite); line.position.set(x, 0.21, 2.5); group.add(line); }
+                const frontLine = new THREE.Mesh(new THREE.BoxGeometry(10, 0.05, 0.1), matTWhite); frontLine.position.set(0, 0.21, 0.5); group.add(frontLine);
+
+                const createBus = (x, z, colorMat) => {
+                    const bus = new THREE.Group();
+                    const bodyL = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.5, 3.6), colorMat); bodyL.position.set(0, 0.55, 0); bodyL.castShadow = true;
+                    const bodyU = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.8, 3.6), matTWhite); bodyU.position.set(0, 1.2, 0); bodyU.castShadow = true;
+                    const win = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.4, 3.4), matTBlack); win.position.set(0, 1.2, 0);
+                    const winF = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.5, 3.65), matTBlack); winF.position.set(0, 1.2, 0);
+                    const w1 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.7, 8), matTBlack); w1.rotation.z = Math.PI/2; w1.position.set(0, 0.3, 1);
+                    const w2 = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.7, 8), matTBlack); w2.rotation.z = Math.PI/2; w2.position.set(0, 0.3, -1);
+                    bus.add(bodyL, bodyU, win, winF, w1, w2); bus.position.set(x, 0, z); return bus;
+                }
+                const bus1 = createBus(-3.5, 2.5, matTBlueBus); const bus2 = createBus(2.5, 2.5, matTOrange); group.add(bus1, bus2);
+
+                const createPottedPlant = (x, z) => {
+                    const p = new THREE.Group();
+                    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.2, 0.5, 8), matTPot); pot.position.set(0, 0.45, 0); pot.castShadow = true;
+                    const plant = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5), matTGreen); plant.position.set(0, 1, 0); plant.castShadow = true;
+                    p.add(pot, plant); p.position.set(x, 0, z); return p;
+                }
+                group.add(createPottedPlant(-5.8, -0.2)); group.add(createPottedPlant(0.6, -0.2)); group.add(createPottedPlant(6.4, -0.2));
+
+                const hedge1 = new THREE.Mesh(new THREE.BoxGeometry(3, 0.6, 0.6), matTGreen); hedge1.position.set(-4.5, 0.5, -5.5);
+                const hedge2 = new THREE.Mesh(new THREE.BoxGeometry(3, 0.6, 0.6), matTGreen); hedge2.position.set(-1, 0.5, -5.5);
+                group.add(hedge1, hedge2);
+            }
+            else if (type === 'zoo') {
+                // --- โมเดลสวนสัตว์ (ตามภาพอ้างอิง) ---
+                const matZStone = new THREE.MeshLambertMaterial({ color: 0xdeb887 }); // สีหินทราย (ซุ้มประตู)
+                const matZWallBlue = new THREE.MeshLambertMaterial({ color: 0x475569 }); // ผนังตึกด้านข้าง (สีฟ้าอมเทา)
+                const matZRoof = new THREE.MeshLambertMaterial({ color: 0x8b5a2b }); // หลังคาสีน้ำตาล
+                const matZWood = new THREE.MeshLambertMaterial({ color: 0x5c4033 }); // ไม้สีเข้ม (ประตู)
+                const matZSign = new THREE.MeshLambertMaterial({ color: 0xf59e0b }); // ป้าย ZOO สีเหลือง
+                const matZSignBg = new THREE.MeshLambertMaterial({ color: 0x3e2723 }); // พื้นหลังป้ายสีน้ำตาลเข้ม
+                const matZGreen = new THREE.MeshLambertMaterial({ color: 0x22c55e }); // พุ่มไม้สีเขียว
+                const matZTree = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); // ใบไม้ต้นไม้
+                const matZGround = new THREE.MeshLambertMaterial({ color: 0xd6d3d1 }); // ลานหินพื้น
+                const matZGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); // กระจกหน้าต่าง/ป้ายกระดาน
+
+                // ฐานหิน (Pavement)
+                const base = new THREE.Mesh(new THREE.BoxGeometry(13, 0.2, 11), matZGround);
+                base.position.set(0, 0.1, 0);
+                base.castShadow = true; base.receiveShadow = true;
+                group.add(base);
+
+                // เสาซุ้มประตูตรงกลาง (ซ้าย-ขวา)
+                const pillarL = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 3), matZStone);
+                pillarL.position.set(-2, 2, 0); pillarL.castShadow = true;
+                const pillarR = new THREE.Mesh(new THREE.BoxGeometry(1.5, 4, 3), matZStone);
+                pillarR.position.set(2, 2, 0); pillarR.castShadow = true;
+                
+                // คานซุ้มประตูด้านบน
+                const archTop = new THREE.Mesh(new THREE.BoxGeometry(5.5, 2, 3), matZStone);
+                archTop.position.set(0, 5, 0); archTop.castShadow = true;
+                
+                // หลังคาโค้งตรงกลาง (หน้าจั่วโค้งสีน้ำตาล)
+                const centerRoof = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, 3.2, 16, 1, false, 0, Math.PI), matZRoof);
+                centerRoof.rotation.z = Math.PI / 2;
+                centerRoof.rotation.x = Math.PI / 2;
+                centerRoof.position.set(0, 4.5, -0.2);
+                centerRoof.castShadow = true;
+
+                // ประตูไม้คู่ตรงกลาง
+                const door = new THREE.Mesh(new THREE.BoxGeometry(2.5, 3.5, 0.2), matZWood);
+                door.position.set(0, 1.75, 1.4);
+                
+                // ป้าย ZOO
+                const signBg = new THREE.Mesh(new THREE.BoxGeometry(3.5, 1.2, 0.2), matZSignBg);
+                signBg.position.set(0, 4.8, 1.6);
+                const signText = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.6, 0.2), matZSign);
+                signText.position.set(0, 4.8, 1.65);
+                
+                // หอคอยเล็กๆ บนปีกซุ้มประตู (ซ้าย-ขวา)
+                const createTower = (x, y, z) => {
+                    const tGroup = new THREE.Group();
+                    const tBase = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.5, 1.5), matZWallBlue);
+                    tBase.position.set(0, 0.75, 0); tBase.castShadow = true;
+                    const tRoof = new THREE.Mesh(new THREE.ConeGeometry(1.2, 1.5, 4), matZRoof);
+                    tRoof.rotation.y = Math.PI / 4; 
+                    tRoof.position.set(0, 2.25, 0); tRoof.castShadow = true;
+                    tGroup.add(tBase, tRoof);
+                    tGroup.position.set(x, y, z);
+                    return tGroup;
+                };
+                group.add(createTower(-2, 6, -0.5));
+                group.add(createTower(2, 6, -0.5));
+
+                // อาคารปีกด้านข้าง
+                const createSideBldg = (x, z) => {
+                    const bGroup = new THREE.Group();
+                    const bWall = new THREE.Mesh(new THREE.BoxGeometry(3, 3, 3), matZWallBlue);
+                    bWall.position.set(0, 1.5, 0); bWall.castShadow = true;
+                    const bRoof = new THREE.Mesh(new THREE.ConeGeometry(2.6, 2, 4), matZRoof);
+                    bRoof.rotation.y = Math.PI / 4;
+                    bRoof.position.set(0, 4, 0); bRoof.castShadow = true;
+                    const bWin = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.2), matZGlass);
+                    bWin.position.set(0, 1.5, 1.5);
+                    bGroup.add(bWall, bRoof, bWin);
+                    bGroup.position.set(x, 0, z);
+                    return bGroup;
+                };
+                group.add(createSideBldg(-4.5, 0));
+                group.add(createSideBldg(4.5, 0));
+
+                // ป้ายประกาศ (Notice Boards)
+                const createBoard = (x, z) => {
+                    const bd = new THREE.Group();
+                    const legs = new THREE.Mesh(new THREE.BoxGeometry(2, 1, 0.2), matZWood);
+                    legs.position.set(0, 0.5, 0);
+                    const board = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.5, 0.3), matZStone);
+                    board.position.set(0, 1.5, 0);
+                    const paper = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.1, 0.32), matZGlass); 
+                    paper.position.set(0, 1.5, 0);
+                    bd.add(legs, board, paper);
+                    bd.position.set(x, 0, z);
+                    return bd;
+                };
+                group.add(createBoard(-4, 3.5));
+                group.add(createBoard(4, 3.5));
+
+                // พุ่มไม้ขอบลาน
+                const h1 = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), matZGreen); h1.position.set(-4.5, 0.5, 4.5); group.add(h1);
+                const h2 = new THREE.Mesh(new THREE.BoxGeometry(4, 1, 1), matZGreen); h2.position.set(4.5, 0.5, 4.5); group.add(h2);
+                const h3 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 5), matZGreen); h3.position.set(-6, 0.5, 2); group.add(h3);
+                const h4 = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 5), matZGreen); h4.position.set(6, 0.5, 2); group.add(h4);
+
+                // ต้นไม้ร่มรื่น
+                const createZooTree = (x, z, scale=1) => {
+                    const tg = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.3, 1.5), matZWood); trunk.position.y = 0.75;
+                    const leaves1 = new THREE.Mesh(new THREE.DodecahedronGeometry(1.2), matZTree); leaves1.position.y = 2;
+                    const leaves2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.8), matZTree); leaves2.position.set(0.5, 2.5, 0);
+                    tg.add(trunk, leaves1, leaves2);
+                    tg.position.set(x, 0, z);
+                    tg.scale.set(scale, scale, scale);
+                    return tg;
+                };
+                group.add(createZooTree(-5, 0.5, 1.2));
+                group.add(createZooTree(-5.5, -2, 1.5));
+                group.add(createZooTree(5, 0.5, 1.2));
+                group.add(createZooTree(5.5, -2, 1.5));
+
+                group.add(pillarL, pillarR, archTop, centerRoof, door, signBg, signText);
+            }
+            
+            return group;
+        }
+		
+		
+		
+		
+
+
+
+
+
+
+
+
+        // ==========================================
+        // MODELS: แปลงเล็ก (NORMAL PROJECTS)
+        // ==========================================
+        function createBuilding(type, x, z) {
+            const group = new THREE.Group(); group.userData = { x, z, type };
+            if (type === 'house') {
+                const matWall = new THREE.MeshLambertMaterial({ color: 0xf4e3c5 }); 
+                const matRoof = new THREE.MeshLambertMaterial({ color: 0xd94426 }); 
+                const matBase = new THREE.MeshLambertMaterial({ color: 0x6b7280 }); 
+                const matWood = new THREE.MeshLambertMaterial({ color: 0x663311 }); 
+                const matGlass = new THREE.MeshLambertMaterial({ color: 0x38bdf8 }); 
+                const matChimney = new THREE.MeshLambertMaterial({ color: 0x9ca3af }); 
+                const matPlant = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.7), matBase);
+                base.position.y = 0.05; base.castShadow = true;
+
+                const mainWall = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.35, 0.65), matWall);
+                mainWall.position.y = 0.275; mainWall.castShadow = true;
+                
+                const upperWall = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.46, 0.46), matWall);
+                upperWall.position.set(0, 0.45, 0); upperWall.rotation.x = Math.PI / 4; upperWall.castShadow = true;
+
+                const roofFront = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.52, 0.05), matRoof);
+                roofFront.position.set(0, 0.62, 0.17); roofFront.rotation.x = -Math.PI / 4; roofFront.castShadow = true;
+                const roofBack = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.52, 0.05), matRoof);
+                roofBack.position.set(0, 0.62, -0.17); roofBack.rotation.x = Math.PI / 4; roofBack.castShadow = true;
+
+                const extWall = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, 0.15), matWall);
+                extWall.position.set(0.15, 0.275, 0.4); extWall.castShadow = true;
+                
+                const extUpper = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.25, 0.15), matWall);
+                extUpper.position.set(0.15, 0.45, 0.4); extUpper.rotation.z = Math.PI / 4; extUpper.castShadow = true;
+
+                const extRoofL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.28, 0.25), matRoof);
+                extRoofL.position.set(0.06, 0.54, 0.4); extRoofL.rotation.z = Math.PI / 4; extRoofL.castShadow = true;
+                const extRoofR = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.28, 0.25), matRoof);
+                extRoofR.position.set(0.24, 0.54, 0.4); extRoofR.rotation.z = -Math.PI / 4; extRoofR.castShadow = true;
+
+                const door = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.22, 0.02), matWood);
+                door.position.set(0.15, 0.21, 0.48);
+                const canopy = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.04, 0.08), matWood);
+                canopy.position.set(0.15, 0.33, 0.5);
+
+                const createWin = (x, y, z, rotY) => {
+                    const wG = new THREE.Group();
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.02), matWood);
+                    const glass = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.03), matGlass);
+                    const cross1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.04), matWood);
+                    const cross2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.12, 0.04), matWood);
+                    wG.add(frame, glass, cross1, cross2);
+                    wG.position.set(x, y, z); wG.rotation.y = rotY;
+                    return wG;
+                };
+                const winFront = createWin(-0.2, 0.3, 0.33, 0);
+                const winLeft = createWin(-0.43, 0.3, 0, -Math.PI/2);
+                const winRight = createWin(0.43, 0.3, 0, Math.PI/2);
+                const vent = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.02), matGlass); 
+                vent.position.set(0.15, 0.45, 0.48); vent.rotation.z = Math.PI / 4; 
+
+                const planter = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.05, 0.06), matWood);
+                planter.position.set(-0.2, 0.2, 0.35);
+                const bushWin = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.06, 0.05), matPlant);
+                bushWin.position.set(-0.2, 0.23, 0.35);
+
+                const chimney = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.3, 0.12), matChimney);
+                chimney.position.set(-0.25, 0.8, -0.1); chimney.castShadow = true;
+                const chimneyCap = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.04, 0.16), matChimney);
+                chimneyCap.position.set(-0.25, 0.95, -0.1); chimneyCap.castShadow = true;
+
+                const bushRight = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12), matPlant);
+                bushRight.position.set(0.45, 0.1, 0.2);
+                const bushRight2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08), matPlant);
+                bushRight2.position.set(0.45, 0.08, 0.35);
+                
+                const treeTrunk = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.2, 0.04), matWood);
+                treeTrunk.position.set(-0.48, 0.15, 0.2);
+                const treeLeaves = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18), matPlant);
+                treeLeaves.position.set(-0.48, 0.3, 0.2);
+
+                group.add(base, mainWall, upperWall, roofFront, roofBack, extWall, extUpper, extRoofL, extRoofR, door, canopy, winFront, winLeft, winRight, vent, planter, bushWin, chimney, chimneyCap, bushRight, bushRight2, treeTrunk, treeLeaves);
+                
+            } else if (type === 'shop') {
+                const matWall = new THREE.MeshLambertMaterial({ color: 0xeeceb8 }); 
+                const matBase = new THREE.MeshLambertMaterial({ color: 0x6b7280 }); 
+                const matRoof = new THREE.MeshLambertMaterial({ color: 0x9ca3af }); 
+                const matBlue = new THREE.MeshLambertMaterial({ color: 0x1d4ed8 }); 
+                const matWhite = new THREE.MeshLambertMaterial({ color: 0xf8fafc }); 
+                const matWood = new THREE.MeshLambertMaterial({ color: 0x8b4513 }); 
+                const matGlass = new THREE.MeshLambertMaterial({ color: 0x38bdf8 }); 
+                const matPlant = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+                const matMetal = new THREE.MeshLambertMaterial({ color: 0xa8a29e }); 
+                const matSign = new THREE.MeshLambertMaterial({ color: 0x1f2937 }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.75), matBase);
+                base.position.y = 0.05; base.castShadow = true;
+                const mainWall = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.45, 0.65), matWall);
+                mainWall.position.y = 0.325; mainWall.castShadow = true;
+
+                const createPillar = (x, z) => {
+                    const p = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.45, 0.1), matBase);
+                    p.position.set(x, 0.325, z); p.castShadow = true; return p;
+                };
+                group.add(createPillar(0.425, 0.325), createPillar(-0.425, 0.325), createPillar(0.425, -0.325), createPillar(-0.425, -0.325));
+
+                const roofTrim = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.08, 0.75), matBase);
+                roofTrim.position.y = 0.59; roofTrim.castShadow = true;
+                const roofTop = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.7), matRoof);
+                roofTop.position.y = 0.65; roofTop.castShadow = true;
+
+                const awningGroup = new THREE.Group();
+                const stripeW = 0.125;
+                for(let i = 0; i < 8; i++) {
+                    const mat = i % 2 === 0 ? matBlue : matWhite;
+                    const stripe = new THREE.Mesh(new THREE.BoxGeometry(stripeW, 0.02, 0.3), mat);
+                    stripe.position.set(-0.4375 + (i * stripeW), 0, 0); stripe.castShadow = true;
+                    const flap = new THREE.Mesh(new THREE.BoxGeometry(stripeW, 0.08, 0.02), mat);
+                    flap.position.set(-0.4375 + (i * stripeW), -0.04, 0.14); flap.castShadow = true;
+                    awningGroup.add(stripe, flap);
+                }
+                awningGroup.position.set(0, 0.48, 0.45);
+                awningGroup.rotation.x = -Math.PI / 6; 
+                group.add(awningGroup);
+
+                const signFrame = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.2, 0.05), matWood);
+                signFrame.position.set(0, 0.7, 0.35); signFrame.castShadow = true;
+                const signBoard = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.15, 0.06), matSign);
+                signBoard.position.set(0, 0.7, 0.35);
+                
+                const door = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.28, 0.02), matWood);
+                door.position.set(0.2, 0.24, 0.33);
+                const doorGlass = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.03), matGlass);
+                doorGlass.position.set(0.2, 0.3, 0.33);
+
+                const winFrame = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.02), matWood);
+                winFrame.position.set(-0.15, 0.3, 0.33);
+                const winGlass = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.18, 0.03), matGlass);
+                winGlass.position.set(-0.15, 0.3, 0.33);
+                
+                const fruitStand = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.12, 0.15), matWood);
+                fruitStand.position.set(-0.15, 0.15, 0.38); fruitStand.rotation.x = Math.PI / 8; fruitStand.castShadow = true;
+
+                const aSign = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.15, 0.02), matWood);
+                aSign.position.set(0.38, 0.15, 0.42);
+                aSign.rotation.y = -Math.PI / 8; aSign.rotation.x = -Math.PI / 12; aSign.castShadow = true;
+
+                const acBox = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.15, 0.15), matMetal);
+                acBox.position.set(-0.43, 0.25, -0.05); acBox.castShadow = true;
+                const acFan = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.09, 12), matSign);
+                acFan.position.set(-0.43, 0.25, -0.05); acFan.rotation.z = Math.PI / 2;
+                
+                const sideDoor = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.2, 0.12), matGlass);
+                sideDoor.position.set(-0.43, 0.2, 0.15);
+                const sideWin = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.1), matGlass);
+                sideWin.position.set(-0.43, 0.25, -0.22);
+
+                const bushL = new THREE.Mesh(new THREE.DodecahedronGeometry(0.1), matPlant);
+                bushL.position.set(-0.48, 0.15, 0.35); bushL.castShadow = true;
+                const bushR = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12), matPlant);
+                bushR.position.set(0.48, 0.15, 0.3); bushR.castShadow = true;
+
+                group.add(base, mainWall, roofTrim, roofTop, signFrame, signBoard, door, doorGlass, winFrame, winGlass, fruitStand, aSign, acBox, acFan, sideDoor, sideWin, bushL, bushR);
+                
+            } else if (type === 'factory') {
+                const matWall = new THREE.MeshLambertMaterial({ color: 0xa3a3a3 }); 
+                const matBase = new THREE.MeshLambertMaterial({ color: 0x52525b }); 
+                const matRoof = new THREE.MeshLambertMaterial({ color: 0x3f3f46 }); 
+                const matGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); 
+                const matDoor = new THREE.MeshLambertMaterial({ color: 0x27272a }); 
+                const matRed = new THREE.MeshLambertMaterial({ color: 0xdc2626 }); 
+                const matWhite = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 }); 
+                const matPipe = new THREE.MeshLambertMaterial({ color: 0x71717a }); 
+                const matPlant = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.75), matBase);
+                base.position.y = 0.05; base.castShadow = true;
+
+                const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.65), matWall);
+                bLeft.position.set(-0.2, 0.325, 0); bLeft.castShadow = true;
+                
+                const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.65), matWall);
+                bRight.position.set(0.225, 0.275, 0); bRight.castShadow = true;
+
+                const roof = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 0.7), matRoof);
+                roof.position.set(0, 0.52, 0);
+                roof.rotation.z = -0.15; 
+                roof.castShadow = true;
+
+                const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.02), matRoof);
+                doorFrame.position.set(-0.15, 0.22, 0.33);
+                const cargoDoor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.03), matDoor);
+                cargoDoor.position.set(-0.15, 0.21, 0.33);
+
+                const createWin = (w, h, x, y) => {
+                    const g = new THREE.Group();
+                    const frame = new THREE.Mesh(new THREE.BoxGeometry(w+0.04, h+0.04, 0.02), matRoof);
+                    const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.03), matGlass);
+                    g.add(frame, glass); g.position.set(x, y, 0.33); return g;
+                };
+                const winTop = createWin(0.25, 0.08, -0.15, 0.42); 
+                const winRight = createWin(0.15, 0.08, 0.25, 0.32); 
+
+                const siloLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.35, 16), matWall);
+                siloLeft.position.set(-0.48, 0.275, 0.15); siloLeft.castShadow = true;
+                const siloLeftCap = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 16), matRoof);
+                siloLeftCap.position.set(-0.48, 0.475, 0.15);
+                
+                const siloRight = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.25, 16), matWall);
+                siloRight.position.set(0.45, 0.225, -0.1); siloRight.castShadow = true;
+
+                const stripeStack = new THREE.Group();
+                for(let i=0; i<6; i++) {
+                    const colorMat = i % 2 === 0 ? matWhite : matRed;
+                    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 16), colorMat);
+                    stripe.position.y = 0.5 + (i * 0.1); stripe.castShadow = true;
+                    stripeStack.add(stripe);
+                }
+                const stackTop = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 16), matRoof);
+                stackTop.position.y = 1.1; stripeStack.add(stackTop);
+                stripeStack.position.set(0.2, 0, -0.15);
+
+                const gStack1 = new THREE.Group();
+                const gBody1 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.25, 16), matWall);
+                gBody1.position.y = 0.55; gBody1.castShadow = true;
+                const gTop1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 16), matRoof);
+                gTop1.position.y = 0.7; gStack1.add(gBody1, gTop1);
+                gStack1.position.set(-0.15, 0, -0.15);
+
+                const gStack2 = new THREE.Group();
+                const gBody2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.15, 16), matWall);
+                gBody2.position.y = 0.525; gBody2.castShadow = true;
+                const gTop2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 16), matRoof);
+                gTop2.position.y = 0.62; gStack2.add(gBody2, gTop2);
+                gStack2.position.set(-0.3, 0, -0.1);
+
+                const pipe1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8), matPipe);
+                pipe1.position.set(0.15, 0.2, 0.34); pipe1.rotation.z = Math.PI / 2;
+                
+                const pipe2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), matPipe);
+                pipe2.position.set(0.3, 0.1, 0.34);
+                
+                const acUnit = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), matRoof);
+                acUnit.position.set(0.35, 0.2, 0.34);
+                const acFan = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 8), matBase);
+                acFan.position.set(0.35, 0.2, 0.34); acFan.rotation.x = Math.PI / 2;
+
+                const bush1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08), matPlant);
+                bush1.position.set(-0.4, 0.1, 0.35); bush1.castShadow = true;
+                const bush2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.06), matPlant);
+                bush2.position.set(-0.48, 0.08, 0.3); bush2.castShadow = true;
+                const bush3 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09), matPlant);
+                bush3.position.set(0.42, 0.12, 0.32); bush3.castShadow = true;
+
+                group.add(base, bLeft, bRight, roof, doorFrame, cargoDoor, winTop, winRight, siloLeft, siloLeftCap, siloRight, stripeStack, gStack1, gStack2, pipe1, pipe2, acUnit, acFan, bush1, bush2, bush3);
+                
+            } else if (type === 'hotel') {
+                const matWall = new THREE.MeshLambertMaterial({ color: 0xedded5 }); 
+                const matBase = new THREE.MeshLambertMaterial({ color: 0x57534e }); 
+                const matRoof = new THREE.MeshLambertMaterial({ color: 0x1d4ed8 }); 
+                const matTrim = new THREE.MeshLambertMaterial({ color: 0xd6caba }); 
+                const matGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); 
+                const matFrame = new THREE.MeshLambertMaterial({ color: 0x334155 }); 
+                const matSignBG = new THREE.MeshLambertMaterial({ color: 0x1e293b }); 
+                const matSignText = new THREE.MeshLambertMaterial({ color: 0xfacc15 }); 
+                const matAwningBlue = new THREE.MeshLambertMaterial({ color: 0x2563eb }); 
+                const matAwningWhite = new THREE.MeshLambertMaterial({ color: 0xf1f5f9 }); 
+                const matPlant = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
+                const matPot = new THREE.MeshLambertMaterial({ color: 0x9a3412 }); 
+                const matMetal = new THREE.MeshLambertMaterial({ color: 0x94a3b8 }); 
+
+                const base = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.75), matBase);
+                base.position.y = 0.05; base.castShadow = true;
+                
+                const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 0.65), matWall);
+                f1.position.y = 0.25; f1.castShadow = true;
+                const trim1 = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.04, 0.68), matTrim);
+                trim1.position.y = 0.42; trim1.castShadow = true;
+                
+                const f2 = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 0.65), matWall);
+                f2.position.y = 0.59; f2.castShadow = true;
+                const trim2 = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.04, 0.68), matTrim);
+                trim2.position.y = 0.76; trim2.castShadow = true;
+
+                const f3 = new THREE.Mesh(new THREE.BoxGeometry(0.85, 0.3, 0.65), matWall);
+                f3.position.y = 0.93; f3.castShadow = true;
+                const trim3 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.06, 0.7), matTrim);
+                trim3.position.y = 1.11; trim3.castShadow = true;
+
+                const roofGeo = new THREE.CylinderGeometry(0.45, 0.64, 0.25, 4);
+                const roof = new THREE.Mesh(roofGeo, matRoof);
+                roof.rotation.y = Math.PI / 4;
+                roof.scale.set(1, 1, 0.75);
+                roof.position.y = 1.26;
+                roof.castShadow = true;
+                
+                const roofTop = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.02, 0.45), matBase);
+                roofTop.position.y = 1.39;
+                roofTop.castShadow = true;
+
+                const createWin = (x, y, z, rotY) => {
+                    const wG = new THREE.Group();
+                    const fBox = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.02), matFrame);
+                    const fArch = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.02, 16), matFrame);
+                    fArch.rotation.x = Math.PI/2; fArch.position.y = 0.06;
+                    const gBox = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.03), matGlass);
+                    const gArch = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.03, 16), matGlass);
+                    gArch.rotation.x = Math.PI/2; gArch.position.y = 0.05;
+                    wG.add(fBox, fArch, gBox, gArch);
+                    wG.position.set(x, y, z); wG.rotation.y = rotY;
+                    return wG;
+                };
+
+                group.add(createWin(-0.25, 0.22, 0.33, 0), createWin(0.25, 0.22, 0.33, 0)); 
+                group.add(createWin(-0.25, 0.56, 0.33, 0), createWin(0, 0.56, 0.33, 0), createWin(0.25, 0.56, 0.33, 0)); 
+                group.add(createWin(-0.25, 0.90, 0.33, 0), createWin(0, 0.90, 0.33, 0), createWin(0.25, 0.90, 0.33, 0)); 
+                group.add(createWin(-0.43, 0.56, 0, -Math.PI/2), createWin(-0.43, 0.90, 0, -Math.PI/2)); 
+                group.add(createWin(0.43, 0.56, 0, Math.PI/2), createWin(0.43, 0.90, 0, Math.PI/2)); 
+
+                const createBackWin = (x, y) => {
+                    const wG = new THREE.Group();
+                    const fB = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.02), matFrame);
+                    const gB = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.03), matGlass);
+                    wG.add(fB, gB); wG.position.set(x, y, -0.33); wG.rotation.y = Math.PI; return wG;
+                };
+                group.add(createBackWin(-0.2, 0.56), createBackWin(0.2, 0.56)); 
+                group.add(createBackWin(-0.2, 0.90), createBackWin(0.2, 0.90)); 
+
+                const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.02), matFrame);
+                doorFrame.position.set(0, 0.21, 0.33);
+                const doorL = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.03), matGlass);
+                doorL.position.set(-0.05, 0.21, 0.33);
+                const doorR = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.03), matGlass);
+                doorR.position.set(0.05, 0.21, 0.33);
+                group.add(doorFrame, doorL, doorR);
+
+                const awningGrp = new THREE.Group();
+                const sliceW = 0.06;
+                for (let i = 0; i < 5; i++) {
+                    const mat = i % 2 === 0 ? matAwningBlue : matAwningWhite;
+                    const slice = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, sliceW, 12, 1, false, 0, Math.PI/2), mat);
+                    slice.rotation.z = Math.PI / 2; slice.rotation.x = Math.PI; 
+                    slice.position.set(-0.12 + (i * sliceW), 0, 0); slice.castShadow = true;
+                    awningGrp.add(slice);
+                }
+                awningGrp.position.set(0, 0.35, 0.33);
+                group.add(awningGrp);
+
+                const frontSign = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.12, 0.05), matSignBG);
+                frontSign.position.set(0, 1.2, 0.23); frontSign.castShadow = true;
+                const frontSignInner = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.06), matSignText);
+                frontSignInner.position.set(0, 1.2, 0.23);
+                group.add(frontSign, frontSignInner);
+
+                const sideSign = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.1), matRoof);
+                sideSign.position.set(0.45, 0.72, 0.1); sideSign.castShadow = true;
+                const sideSignInner = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.26, 0.06), matSignText);
+                sideSignInner.position.set(0.45, 0.72, 0.1);
+                group.add(sideSign, sideSignInner);
+
+                const acRoof = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.15, 0.15), matMetal);
+                acRoof.position.set(-0.1, 1.48, -0.05); acRoof.castShadow = true;
+                const fan1 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.16, 12), matSignBG);
+                fan1.position.set(-0.15, 1.48, -0.05); fan1.rotation.x = Math.PI/2;
+                const fan2 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.16, 12), matSignBG);
+                fan2.position.set(-0.05, 1.48, -0.05); fan2.rotation.x = Math.PI/2;
+                group.add(acRoof, fan1, fan2);
+
+                const acBack = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.12, 0.08), matMetal);
+                acBack.position.set(0.15, 0.2, -0.36); acBack.castShadow = true;
+                const fan3 = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.09, 12), matSignBG);
+                fan3.position.set(0.15, 0.2, -0.36); fan3.rotation.x = Math.PI/2;
+                group.add(acBack, fan3);
+
+                const createPlanter = (x) => {
+                    const pG = new THREE.Group();
+                    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.04, 0.08, 8), matPot);
+                    pot.position.y = 0.14; pot.castShadow = true;
+                    const bush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08), matPlant);
+                    bush.position.y = 0.22; bush.castShadow = true;
+                    pG.add(pot, bush); pG.position.set(x, 0, 0.35); return pG;
+                };
+                group.add(createPlanter(-0.35), createPlanter(0.35));
+
+                group.add(base, f1, trim1, f2, trim2, f3, trim3, roof, roofTop);
+            }
+            
+            group.position.set(x, 0, z); return group;
+        }
+
+        function createWorkerModel() {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.35, 0.2), new THREE.MeshLambertMaterial({ color: 0xf97316 })); body.position.y = 0.3; body.castShadow = true; group.add(body);
+            const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.2), new THREE.MeshLambertMaterial({ color: 0xfcb084 })); head.position.y = 0.55; head.castShadow = true; group.add(head);
+            const hat = new THREE.Mesh(new THREE.ConeGeometry(0.25, 0.15, 12), new THREE.MeshLambertMaterial({ color: 0xfacc15 })); hat.position.y = 0.7; hat.castShadow = true; group.add(hat);
+            const legMat = new THREE.MeshLambertMaterial({ color: 0x1e3a8a });
+            const legLGroup = new THREE.Group(); legLGroup.position.set(0.08, 0.1, 0); const legL = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.1), legMat); legL.position.y = -0.1; legL.castShadow = true; legLGroup.add(legL); legLGroup.name = "leg_L1"; 
+            const legRGroup = new THREE.Group(); legRGroup.position.set(-0.08, 0.1, 0); const legR = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.2, 0.1), legMat); legR.position.y = -0.1; legR.castShadow = true; legRGroup.add(legR); legRGroup.name = "leg_R1"; 
+            group.add(legLGroup, legRGroup);
+            const armLGroup = new THREE.Group(); armLGroup.position.set(0.18, 0.4, 0); const armL = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.25, 0.08), new THREE.MeshLambertMaterial({ color: 0xfcb084 })); armL.position.y = -0.1; armLGroup.add(armL); armLGroup.name = "arm_L";
+            const armRGroup = new THREE.Group(); armRGroup.position.set(-0.18, 0.4, 0); const armR = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.25, 0.08), new THREE.MeshLambertMaterial({ color: 0xfcb084 })); armR.position.y = -0.1; armRGroup.add(armR); armRGroup.name = "arm_R";
+            group.add(armLGroup, armRGroup); return group;
+        }
+
+        function createPlotFence(isOwned) {
+            const group = new THREE.Group();
+            const fenceColor = isOwned ? 0xf8fafc : 0x475569; const railColor = isOwned ? 0xf8fafc : 0xb91c1c; 
+            const postMat = new THREE.MeshLambertMaterial({ color: fenceColor }); const railMat = new THREE.MeshLambertMaterial({ color: railColor });
+            const plotW = PLOT_SIZE - 0.2; const halfW = plotW / 2; const height = 0.4; const thickness = 0.15;
+            const yPos = 0.25; 
+            const r1 = new THREE.Mesh(new THREE.BoxGeometry(plotW, 0.08, thickness/2), railMat); r1.position.set(0, yPos, halfW); r1.castShadow = true;
+            const r2 = new THREE.Mesh(new THREE.BoxGeometry(plotW, 0.08, thickness/2), railMat); r2.position.set(0, yPos, -halfW); r2.castShadow = true;
+            const r3 = new THREE.Mesh(new THREE.BoxGeometry(thickness/2, 0.08, plotW), railMat); r3.position.set(halfW, yPos, 0); r3.castShadow = true;
+            const r4 = new THREE.Mesh(new THREE.BoxGeometry(thickness/2, 0.08, plotW), railMat); r4.position.set(-halfW, yPos, 0); r4.castShadow = true;
+            group.add(r1, r2, r3, r4);
+            const postGeo = new THREE.BoxGeometry(0.25, height, 0.25); const step = plotW / 3;
+            for(let i=0; i<=3; i++) {
+                const px = -halfW + (i * step);
+                const p1 = new THREE.Mesh(postGeo, postMat); p1.position.set(px, height/2, halfW); p1.castShadow = true;
+                const p2 = new THREE.Mesh(postGeo, postMat); p2.position.set(px, height/2, -halfW); p2.castShadow = true;
+                group.add(p1, p2);
+                if (i > 0 && i < 3) {
+                    const p3 = new THREE.Mesh(postGeo, postMat); p3.position.set(halfW, height/2, px); p3.castShadow = true;
+                    const p4 = new THREE.Mesh(postGeo, postMat); p4.position.set(-halfW, height/2, px); p4.castShadow = true;
+                    group.add(p3, p4);
+                }
+            } return group;
+        }
+
+        function generateMap() {
+            document.getElementById('loading').style.display = 'flex'; document.getElementById('loading').style.opacity = '1';
+            while(mineGroup.children.length > 0) mineGroup.remove(mineGroup.children[0]); 
+            while(envGroup.children.length > 0) envGroup.remove(envGroup.children[0]);
+            while(coinGroup.children.length > 0) coinGroup.remove(coinGroup.children[0]);
+            activeCars.forEach(c => scene.remove(c.group)); activeCars = [];
+            megaPlotMeshes = [];
+            
+            boardLogical = []; growthLogical = []; labelGrid = []; rentCooldown = []; rentAppearTime = []; coinGrid = []; document.getElementById('labels-container').innerHTML = '';
+            plotMeshes = new Array(TOTAL_PLOTS); plotFences = new Array(TOTAL_PLOTS);
+
+            const isLoadingSave = (boardLogicalSaved && growthLogicalSaved);
+            
+            // วาดแปลงที่ดินปกติ (10x6)
+            for (let pZ = 0; pZ < PLOTS_Z; pZ++) {
+                for (let pX = 0; pX < PLOTS_X; pX++) {
+                    let plotIndex = (pZ * PLOTS_X) + pX;
+                    const pg = new THREE.Mesh(new THREE.PlaneGeometry(PLOT_SIZE, PLOT_SIZE), new THREE.MeshLambertMaterial({ color: 0x79553a }));
+                    pg.rotation.x = -Math.PI / 2; 
+                    let startX = getPlotStart(pX); let startZ = getPlotStart(pZ);
+                    let cx = startX + (PLOT_SIZE / 2) - 0.5; let cz = startZ + (PLOT_SIZE / 2) - 0.5;
+                    pg.position.set(cx, 0.01, cz); pg.receiveShadow = true; envGroup.add(pg); plotMeshes[plotIndex] = pg;
+
+                    let fenceGroup = createPlotFence(ownedPlots[plotIndex]); fenceGroup.position.set(cx, 0.01, cz); envGroup.add(fenceGroup); plotFences[plotIndex] = fenceGroup;
+                }
+            }
+
+            // วาดที่ดิน MEGA PLOTS (6 แปลงซ้ายขวา)
+            MEGA_CENTERS.forEach((pos, i) => {
+                const pg = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.MeshLambertMaterial({ color: 0x5a4d41 }));
+                pg.rotation.x = -Math.PI / 2;
+                pg.position.set(pos.x, 0.01, pos.z);
+                pg.receiveShadow = true;
+                pg.userData = { isMega: true, index: i };
+                envGroup.add(pg);
+                megaPlotMeshes.push(pg);
+
+                let fenceGroup = createMegaPlotFence(ownedMegaPlots[i]);
+                fenceGroup.position.set(pos.x, 0.01, pos.z);
+                envGroup.add(fenceGroup);
+
+                if(megaBoardLogical[i] !== 'empty') {
+                    let building = createMegaBuilding(megaBoardLogical[i]);
+                    building.position.set(pos.x, 0, pos.z);
+                    mineGroup.add(building);
+                }
+            });
+
+            // ถนน
+            const roadMat = new THREE.MeshLambertMaterial({ color: 0x1a1a1a }); 
+            const medianMat = new THREE.MeshLambertMaterial({ color: 0x16a34a }); 
+            const lineMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); 
+            const extLength = 150; 
+
+            for (let pZ = BLOCK_SIZE; pZ < PLOTS_Z; pZ += BLOCK_SIZE) {
+                let roadZ = getPlotStart(pZ) - ROAD_GAP;
+                let centerZ = roadZ + ROAD_GAP/2 - 0.5;
+                
+                let rMesh = new THREE.Mesh(new THREE.PlaneGeometry(400, ROAD_GAP), roadMat); 
+                rMesh.rotation.x = -Math.PI / 2; rMesh.position.set(COLS/2 - 0.5, 0.02, centerZ); rMesh.receiveShadow = true; envGroup.add(rMesh);
+                
+                for (let pX = 0; pX < PLOTS_X; pX += BLOCK_SIZE) {
+                    let blockStartX = getPlotStart(pX);
+                    let plotsInThisBlock = Math.min(BLOCK_SIZE, PLOTS_X - pX);
+                    let blockWidth = plotsInThisBlock * PLOT_SIZE;
+                    let blockCenterX = blockStartX + blockWidth / 2 - 0.5;
+                    
+                    let mMesh = new THREE.Mesh(new THREE.BoxGeometry(blockWidth, 0.1, 0.8), medianMat);
+                    mMesh.position.set(blockCenterX, 0.05, centerZ); 
+                    mMesh.castShadow = true; mMesh.receiveShadow = true; envGroup.add(mMesh);
+                }
+                
+                let mMeshLeft = new THREE.Mesh(new THREE.BoxGeometry(extLength, 0.1, 0.8), medianMat);
+                mMeshLeft.position.set(-extLength/2, 0.05, centerZ); envGroup.add(mMeshLeft);
+                let mMeshRight = new THREE.Mesh(new THREE.BoxGeometry(extLength, 0.1, 0.8), medianMat);
+                mMeshRight.position.set(COLS + extLength/2, 0.05, centerZ); envGroup.add(mMeshRight);
+                
+                for(let dx = -extLength; dx < COLS + extLength; dx += 2) {
+                    if (getPlotFromCoord(dx) !== -1 || dx < 0 || dx >= COLS) { 
+                        let dash1 = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.15), lineMat); dash1.rotation.x = -Math.PI / 2; dash1.position.set(dx, 0.03, centerZ - 1.2); envGroup.add(dash1);
+                        let dash2 = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.15), lineMat); dash2.rotation.x = -Math.PI / 2; dash2.position.set(dx, 0.03, centerZ + 1.2); envGroup.add(dash2);
+                    }
+                }
+
+                for(let dx = -extLength; dx < COLS + extLength; dx += 3) {
+                    if (getPlotFromCoord(dx) !== -1 || dx < 0 || dx >= COLS) { 
+                        let tree = createTree(); tree.position.set(dx, 0.1, centerZ); envGroup.add(tree);
+                    }
+                }
+            }
+
+            for (let pX = BLOCK_SIZE; pX < PLOTS_X; pX += BLOCK_SIZE) {
+                let roadX = getPlotStart(pX) - ROAD_GAP;
+                let centerX = roadX + ROAD_GAP/2 - 0.5;
+                
+                let rMesh = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_GAP, 400), roadMat);
+                rMesh.rotation.x = -Math.PI / 2; rMesh.position.set(centerX, 0.02, ROWS/2 - 0.5); rMesh.receiveShadow = true; envGroup.add(rMesh);
+                
+                for (let pZ = 0; pZ < PLOTS_Z; pZ += BLOCK_SIZE) {
+                    let blockStartZ = getPlotStart(pZ);
+                    let plotsInThisBlock = Math.min(BLOCK_SIZE, PLOTS_Z - pZ);
+                    let blockHeight = plotsInThisBlock * PLOT_SIZE;
+                    let blockCenterZ = blockStartZ + blockHeight / 2 - 0.5;
+                    
+                    let mMesh = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, blockHeight), medianMat);
+                    mMesh.position.set(centerX, 0.05, blockCenterZ); 
+                    mMesh.castShadow = true; mMesh.receiveShadow = true; envGroup.add(mMesh);
+                }
+                
+                let mMeshTop = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, extLength), medianMat);
+                mMeshTop.position.set(centerX, 0.05, -extLength/2); envGroup.add(mMeshTop);
+                let mMeshBottom = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, extLength), medianMat);
+                mMeshBottom.position.set(centerX, 0.05, ROWS + extLength/2); envGroup.add(mMeshBottom);
+                
+                for(let dz = -extLength; dz < ROWS + extLength; dz += 2) {
+                    if (getPlotFromCoord(dz) !== -1 || dz < 0 || dz >= ROWS) {
+                        let dash1 = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 1), lineMat); dash1.rotation.x = -Math.PI / 2; dash1.position.set(centerX - 1.2, 0.03, dz); envGroup.add(dash1);
+                        let dash2 = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 1), lineMat); dash2.rotation.x = -Math.PI / 2; dash2.position.set(centerX + 1.2, 0.03, dz); envGroup.add(dash2);
+                    }
+                }
+
+                for(let dz = -extLength; dz < ROWS + extLength; dz += 3) {
+                    if (getPlotFromCoord(dz) !== -1 || dz < 0 || dz >= ROWS) { 
+                        let tree = createTree(); tree.position.set(centerX, 0.1, dz); envGroup.add(tree);
+                    }
+                }
+            }
+
+            for (let z = 0; z < ROWS; z++) {
+                let row = [], gRow = [], lRow = [], rcRow = [], rcAppRow = [], cRow = [];
+                for (let x = 0; x < COLS; x++) {
+                    let cellType = 'empty'; let growth = 0;
+                    let pX = getPlotFromCoord(x); let pZ = getPlotFromCoord(z);
+                    let isRoad = (pX === -1 || pZ === -1); 
+
+                    if (!isRoad && isLoadingSave && boardLogicalSaved[z] && growthLogicalSaved[z]) {
+                        cellType = boardLogicalSaved[z][x] || 'empty'; growth = growthLogicalSaved[z][x] || 0;
+                        if (cellType !== 'empty' && cellType !== 'road') {
+                            let build = createBuilding(cellType, x, z); let s = Math.max(0.01, growth / 100) * 5.0; 
+                            build.scale.set(s, s, s); mineGroup.add(build);
+                        }
+                    }
+                    row.push(isRoad ? 'road' : cellType); gRow.push(growth); lRow.push(null); rcRow.push(0); rcAppRow.push(0); cRow.push(null);
+                }
+                boardLogical.push(row); growthLogical.push(gRow); labelGrid.push(lRow); rentCooldown.push(rcRow); rentAppearTime.push(rcAppRow); coinGrid.push(cRow);
+            }
+
+            let carIdCounter = 0;
+            for(let key in ownedCars) {
+                for(let i = 0; i < ownedCars[key]; i++) {
+                    const car = CAR_TYPES[key]; const carGroup = createWorkerModel(); carGroup.visible = false; scene.add(carGroup);
+                    activeCars.push({ id: carIdCounter++, type: key, group: carGroup, logicalPos: { x: 0, z: 0 }, nextStep: null, targetPos: null, speed: car.speed, assignedPlot: null, jobType: 'harvest', targetCrop: null });
+                }
+            }
+
+            camera.position.set(COLS / 2, 70, (ROWS / 2) + 50); 
+            camera.lookAt(COLS / 2, 0, ROWS / 2);
+			initTraffic();
+            setTimeout(() => { document.getElementById('loading').style.opacity = '0'; setTimeout(() => document.getElementById('loading').style.display = 'none', 500); }, 100);
+        }
+
+        function isPlotEmpty(plotIndex) {
+            let pX = plotIndex % PLOTS_X; let pZ = Math.floor(plotIndex / PLOTS_X);
+            let cx = getPlotStart(pX) + Math.floor(PLOT_SIZE / 2); let cz = getPlotStart(pZ) + Math.floor(PLOT_SIZE / 2);
+            if (boardLogical[cz] && boardLogical[cz][cx] !== 'empty') return false; return true;
+        }
+
+        // ==========================================
+        // 3D CAMERA INTERACTION & CLICKS
+        // ==========================================
+        const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+        let isDragging = false, hasDragged = false, dragStartX = 0, dragStartY = 0, camStartX = 0, camStartZ = 0;
+
+        container.addEventListener('wheel', (event) => {
+            if(isInMenu || isPaused) return; event.preventDefault();
+            const newY = camera.position.y + (event.deltaY * 0.05);
+            if (newY >= 10 && newY <= 200) { camera.position.y = newY; camera.position.z += (event.deltaY * 0.035); }
+        }, { passive: false });
+
+        container.addEventListener('pointerdown', (event) => {
+            if(isInMenu || isPaused) return; isDragging = true; hasDragged = false;
+            dragStartX = event.clientX; dragStartY = event.clientY; camStartX = camera.position.x; camStartZ = camera.position.z;
+        });
+
+        container.addEventListener('pointermove', (event) => {
+            if(isInMenu || !isDragging) return;
+            const dx = event.clientX - dragStartX; const dy = event.clientY - dragStartY;
+            if(Math.abs(dx) > 5 || Math.abs(dy) > 5) hasDragged = true;
+            if(hasDragged) { camera.position.x = camStartX - (dx * 0.05); camera.position.z = camStartZ - (dy * 0.05); }
+        });
+
+        container.addEventListener('pointerup', (event) => {
+            if(isInMenu) return; isDragging = false;
+            if(!hasDragged) {
+                const rect = container.getBoundingClientRect(); 
+                mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1; 
+                mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+                raycaster.setFromCamera(mouse, camera); 
+                
+                // 1. ตรวจสอบคลิกเหรียญ 3D
+                const coinIntersects = raycaster.intersectObjects(coinGroup.children);
+                if (coinIntersects.length > 0) {
+                    const clickedCoin = coinIntersects[0].object;
+                    collectRent(clickedCoin.userData.x, clickedCoin.userData.z);
+                    return; 
+                }
+
+                // 2. ตรวจสอบคลิก Mega Plot (ที่ดินยักษ์)
+                const megaIntersects = raycaster.intersectObjects(megaPlotMeshes);
+                if (megaIntersects.length > 0) {
+                    const clickedMega = megaIntersects[0].object;
+                    openMegaPlotModal(clickedMega.userData.index);
+                    return;
+                }
+
+                // 3. ตรวจสอบคลิกพื้นดินทั่วไป
+                const intersects = raycaster.intersectObject(ground);
+                if (intersects.length > 0) {
+                    const targetX = Math.round(intersects[0].point.x); const targetZ = Math.round(intersects[0].point.z);
+                    if (targetX >= 0 && targetX < COLS && targetZ >= 0 && targetZ < ROWS) {
+                        let pX = getPlotFromCoord(targetX); let pZ = getPlotFromCoord(targetZ);
+                        if (pX !== -1 && pZ !== -1 && pX >= 0 && pX < PLOTS_X && pZ >= 0 && pZ < PLOTS_Z) {
+                            openPlotModal((pZ * PLOTS_X) + pX);
+                        }
+                    }
+                }
+            }
+        });
+
+        // ==========================================
+        // MEGA PLOT MODAL LOGIC
+        // ==========================================
+        function openMegaPlotModal(index) {
+            sfx.click();
+            selectedMegaPlotIndex = index;
+            document.getElementById('mega-plot-subtitle').innerText = MEGA_CENTERS[index].name;
+            
+            if (!ownedMegaPlots[index]) {
+                document.getElementById('buy-mega-ui').style.display = 'block';
+                document.getElementById('build-mega-ui').style.display = 'none';
+                document.getElementById('demolish-mega-ui').style.display = 'none';
+                const btnBuy = document.getElementById('btn-buy-mega');
+                if (inventory.money < 2000000) { btnBuy.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-600'); btnBuy.classList.remove('bg-green-600', 'hover:bg-green-500'); btnBuy.disabled = true; }
+                else { btnBuy.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-600'); btnBuy.classList.add('bg-green-600', 'hover:bg-green-500'); btnBuy.disabled = false; }
+            } else if (megaBoardLogical[index] === 'empty') {
+                document.getElementById('buy-mega-ui').style.display = 'none';
+                document.getElementById('build-mega-ui').style.display = 'block';
+                document.getElementById('demolish-mega-ui').style.display = 'none';
+            } else {
+                document.getElementById('buy-mega-ui').style.display = 'none';
+                document.getElementById('build-mega-ui').style.display = 'none';
+                document.getElementById('demolish-mega-ui').style.display = 'block';
+                let type = megaBoardLogical[index];
+                document.getElementById('mega-built-icon').innerText = MEGA_PROJECTS[type].icon;
+                document.getElementById('mega-built-name').innerText = MEGA_PROJECTS[type].name;
+            }
+
+            const modal = document.getElementById('mega-plot-modal'); modal.classList.remove('opacity-0', 'pointer-events-none'); modal.children[0].classList.replace('scale-95', 'scale-100');
+        }
+
+        function closeMegaModal() {
+            sfx.click();
+            const modal = document.getElementById('mega-plot-modal'); modal.classList.add('opacity-0', 'pointer-events-none'); modal.children[0].classList.replace('scale-100', 'scale-95');
+            selectedMegaPlotIndex = null;
+        }
+
+        function confirmBuyMegaPlot() {
+            if(selectedMegaPlotIndex === null) return; 
+            const price = 2000000;
+            if(inventory.money >= price) {
+                sfx.buy(); inventory.money -= price; ownedMegaPlots[selectedMegaPlotIndex] = true;
+                generateMap(); updateUI(); closeMegaModal(); 
+                showMessage('สำเร็จ!', `คุณได้กรรมสิทธิ์ที่ดิน <b>${MEGA_CENTERS[selectedMegaPlotIndex].name}</b> แล้ว!`, '🎉');
+            } else sfx.error();
+        }
+
+        function confirmBuildMegaProject() {
+            if(selectedMegaPlotIndex === null) return;
+            const selectEl = document.getElementById('mega-project-select');
+            const typeKey = selectEl.value;
+            const projectInfo = MEGA_PROJECTS[typeKey];
+
+            if(inventory.money >= projectInfo.cost) {
+                sfx.buy(); inventory.money -= projectInfo.cost; 
+                megaBoardLogical[selectedMegaPlotIndex] = typeKey;
+                generateMap(); updateUI(); closeMegaModal();
+                showMessage('อภิมหาโปรเจกต์สำเร็จ!', `<b>${projectInfo.name} ${projectInfo.icon}</b> ถูกสร้างเสร็จสมบูรณ์และเปิดใช้งานแล้ว! สถานะเมืองพุ่งปรี๊ด!`, projectInfo.icon, 5000);
+            } else {
+                sfx.error(); showMessage('งบไม่พอ!', `ต้องการงบอีก <span class="text-red-400">${(projectInfo.cost - inventory.money).toLocaleString()} ฿</span>`, '❌');
+            }
+        }
+
+        function confirmDemolishMega() {
+            if(selectedMegaPlotIndex === null) return;
+            sfx.harvest(); 
+            megaBoardLogical[selectedMegaPlotIndex] = 'empty';
+            generateMap(); updateUI(); closeMegaModal();
+        }
+
+
+        // ==========================================
+        // PLOT & BUILD MODALS (แปลงเล็ก)
+        // ==========================================
+        function openPlotModal(plotIndex) { sfx.click(); if (!ownedPlots[plotIndex]) openBuyPlotModal(plotIndex); else openCarSelectModal(plotIndex); }
+        function openBuyPlotModal(plotIndex) {
+            buyingPlotIndex = plotIndex; document.getElementById('buy-plot-subtitle').innerText = plotNames[plotIndex]; document.getElementById('buy-plot-price').innerText = PLOT_PRICES[plotIndex].toLocaleString();
+            const btnBuy = document.getElementById('btn-confirm-buy-plot');
+            if (inventory.money < PLOT_PRICES[plotIndex]) { btnBuy.classList.add('opacity-50', 'cursor-not-allowed', 'bg-slate-600'); btnBuy.classList.remove('bg-green-600', 'hover:bg-green-500'); btnBuy.disabled = true; }
+            else { btnBuy.classList.remove('opacity-50', 'cursor-not-allowed', 'bg-slate-600'); btnBuy.classList.add('bg-green-600', 'hover:bg-green-500'); btnBuy.disabled = false; }
+            const modal = document.getElementById('buy-plot-modal'); modal.classList.remove('opacity-0', 'pointer-events-none'); modal.children[0].classList.replace('scale-95', 'scale-100');
+        }
+        function closeBuyPlotModal() { sfx.click(); document.getElementById('buy-plot-modal').classList.add('opacity-0', 'pointer-events-none'); document.getElementById('buy-plot-modal').children[0].classList.replace('scale-100', 'scale-95'); buyingPlotIndex = null; }
+        function confirmBuyPlot() {
+            if(buyingPlotIndex === null) return; const price = PLOT_PRICES[buyingPlotIndex];
+            if(inventory.money >= price) {
+                sfx.buy(); inventory.money -= price; ownedPlots[buyingPlotIndex] = true;
+                if (plotFences[buyingPlotIndex]) plotFences[buyingPlotIndex].children.forEach(c => c.material.color.setHex(0xf8fafc)); 
+                updateUI(); closeBuyPlotModal(); showMessage('ซื้อที่ดินสำเร็จ!', `คุณได้เป็นเจ้าของ <b>${plotNames[buyingPlotIndex]}</b> เรียบร้อยแล้ว!`, '🎉');
+            } else sfx.error();
+        }
+
+        function openCarSelectModal(plotIndex) {
+            selectedPlotIndex = plotIndex; let emptyStatus = isPlotEmpty(plotIndex);
+            document.getElementById('car-select-title').innerText = emptyStatus ? '🏗️ สั่งงานก่อสร้าง' : '🏗️ รื้อถอน/จัดการตึก'; document.getElementById('car-select-subtitle').innerText = plotNames[plotIndex];
+            const customUI = document.getElementById('car-select-custom-ui');
+            if (emptyStatus) {
+                customUI.innerHTML = `
+                    <div class="mb-3 text-left">
+                        <label class="text-sm text-slate-300 font-bold">เลือกแบบแปลนก่อสร้าง:</label>
+                        <select id="plant-crop-select" class="w-full bg-slate-700 text-white p-2 rounded-lg mt-1 outline-none border border-slate-600 focus:border-blue-500">
+                            <option value="house">🏠 โครงการบ้าน (ทุน ${SEED_COSTS.house.toLocaleString()} ฿)</option>
+                            <option value="shop">🏪 โซนการค้า (ทุน ${SEED_COSTS.shop.toLocaleString()} ฿)</option>
+                            <option value="factory">🏭 เขตอุตสาหกรรม (ทุน ${SEED_COSTS.factory.toLocaleString()} ฿)</option>
+                            <option value="hotel">🏨 โครงการโรงแรม (ทุน ${SEED_COSTS.hotel.toLocaleString()} ฿)</option>
+                        </select>
+                    </div>`;
+            } else customUI.innerHTML = ''; 
+            const optionsBox = document.getElementById('car-select-options'); optionsBox.innerHTML = '';
+            let idleCounts = {}; for(let key in CAR_TYPES) idleCounts[key] = 0; activeCars.forEach(c => { if (c.assignedPlot === null) idleCounts[c.type]++; });
+            let workingHere = activeCars.filter(c => c.assignedPlot === plotIndex);
+            if(workingHere.length > 0) {
+                let statusDiv = document.createElement('div'); statusDiv.className = "bg-blue-950/60 border border-blue-500/40 p-2 rounded-xl text-xs text-left mb-2 text-blue-300"; let text = "<b>ผู้รับเหมาที่กำลังทำงานไซส์นี้:</b>";
+                workingHere.forEach(c => { text += `<div class="mt-0.5">${CAR_TYPES[c.type].icon} ${CAR_TYPES[c.type].name} <span class="text-slate-400 text-[10px]">${c.jobType === 'plant' ? '(สร้าง)' : '(รื้อถอน)'}</span></div>`; });
+                statusDiv.innerHTML = text; optionsBox.appendChild(statusDiv);
+            }
+            let deployBtnText = emptyStatus ? 'ส่งช่างไปสร้าง' : 'ส่งช่างไปรื้อถอน'; let deployJobType = emptyStatus ? 'plant' : 'harvest';
+            for(let key in CAR_TYPES) {
+                const car = CAR_TYPES[key]; const idleCount = idleCounts[key]; const opt = document.createElement('div'); opt.className = "flex justify-between items-center bg-slate-900 p-2.5 rounded-xl border border-slate-700 text-sm";
+                opt.innerHTML = `
+                    <div class="text-left"><div class="font-bold text-white">${car.icon} ${car.name}</div><div class="text-xs text-slate-400">ว่าง: <span class="text-yellow-400 font-bold">${idleCount}</span> ${car.isTemp ? 'ทีม' : 'คัน'}</div></div>
+                    <button onclick="deployCarToSelectedPlot('${key}', '${deployJobType}')" ${idleCount === 0 ? 'disabled class="bg-slate-700 text-slate-500 text-xs px-3 py-1.5 rounded-lg cursor-not-allowed"' : 'class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg font-bold transition shadow-md"'}>${deployBtnText}</button>`;
+                optionsBox.appendChild(opt);
+            }
+            document.getElementById('car-select-modal').classList.remove('opacity-0', 'pointer-events-none'); document.getElementById('car-select-modal').children[0].classList.replace('scale-95', 'scale-100');
+        }
+
+        function deployCarToSelectedPlot(typeKey, jobType) {
+            let carToDeploy = activeCars.find(c => c.type === typeKey && c.assignedPlot === null);
+            if (carToDeploy) {
+                let targetCropValue = null;
+                if (jobType === 'plant') {
+                    targetCropValue = document.getElementById('plant-crop-select').value; let cost = SEED_COSTS[targetCropValue];
+                    if (inventory.money < cost) { sfx.error(); showMessage('งบประมาณไม่พอ!', `คุณต้องการงบ <span class="text-red-400">${cost.toLocaleString()} ฿</span><br>สำหรับขึ้นโครงการนี้`, '❌'); return; }
+                    sfx.buy(); inventory.money -= cost; updateUI();
+                } else sfx.click();
+
+                carToDeploy.assignedPlot = selectedPlotIndex; carToDeploy.jobType = jobType;
+                if (jobType === 'plant') { carToDeploy.targetCrop = targetCropValue; if(plotMeshes[selectedPlotIndex]) plotMeshes[selectedPlotIndex].material.color.setHex(0x475569); } 
+                else { carToDeploy.targetCrop = null; if(plotMeshes[selectedPlotIndex]) plotMeshes[selectedPlotIndex].material.color.setHex(0x79553a); }
+                let pX = selectedPlotIndex % PLOTS_X; let pZ = Math.floor(selectedPlotIndex / PLOTS_X);
+                let startX = getPlotStart(pX); let startZ = getPlotStart(pZ);
+                carToDeploy.logicalPos = { x: startX, z: startZ }; carToDeploy.group.position.set(startX, 0, startZ);
+                carToDeploy.group.visible = true; carToDeploy.nextStep = null; carToDeploy.targetPos = null;
+                closeCarSelect(); updateUI();
+            }
+        }
+        function unassignPlotCars() { sfx.click(); activeCars.forEach(c => { if(c.assignedPlot === selectedPlotIndex) { c.assignedPlot = null; c.group.visible = false; c.nextStep = null; c.targetPos = null; } }); closeCarSelect(); updateUI(); }
+        function closeCarSelect() { sfx.click(); document.getElementById('car-select-modal').classList.add('opacity-0', 'pointer-events-none'); document.getElementById('car-select-modal').children[0].classList.replace('scale-100', 'scale-95'); }
+
+        // ==========================================
+        // ระบบจัดการเวลารอบ (30 วิ) และเวลาแสดง (10 วิ)
+        // ==========================================
+        setInterval(() => {
+            if (!isFarmActive || isPaused) return;
+            for (let z = 0; z < ROWS; z++) {
+                if (!rentCooldown[z]) continue;
+                for (let x = 0; x < COLS; x++) {
+                    if (rentCooldown[z][x] > 0) {
+                        rentCooldown[z][x]--;
+                    }
+
+                    let isBuilding = (boardLogical[z][x] !== 'empty' && boardLogical[z][x] !== 'road');
+                    let isFullyGrown = (growthLogical[z][x] >= 100);
+
+                    if (rentCooldown[z][x] === 0 && isBuilding && isFullyGrown) {
+                        if (rentAppearTime[z][x] === 0) {
+                            rentAppearTime[z][x] = 10; 
+                        } else if (rentAppearTime[z][x] > 0) {
+                            rentAppearTime[z][x]--; 
+                            if (rentAppearTime[z][x] === 0) {
+                                rentCooldown[z][x] = 30;
+                            }
+                        }
+                    } else if (rentCooldown[z][x] > 0) {
+                        rentAppearTime[z][x] = 0;
+                    }
+                }
+            }
+        }, 1000);
+
+        // ==========================================
+        // RENDERING & LOOP
+        // ==========================================
+        const clock = new THREE.Clock();
+        function mineBlock(x, z) {
+            const type = boardLogical[z][x];
+            if (type !== 'empty' && type !== 'road' && growthLogical[z][x] >= 100) {
+                if (type === 'house') inventory.house--; if (type === 'shop') inventory.shop--; if (type === 'factory') inventory.factory--; if (type === 'hotel') inventory.hotel--;
+                
+                if(inventory.house < 0) inventory.house = 0;
+                if(inventory.shop < 0) inventory.shop = 0;
+                if(inventory.factory < 0) inventory.factory = 0;
+                if(inventory.hotel < 0) inventory.hotel = 0;
+
+                boardLogical[z][x] = 'empty'; growthLogical[z][x] = 0; rentCooldown[z][x] = 0; rentAppearTime[z][x] = 0; 
+                const blockToRemove = mineGroup.children.find(m => m.userData.x === x && m.userData.z === z); if (blockToRemove) mineGroup.remove(blockToRemove);
+                
+                if (coinGrid[z] && coinGrid[z][x]) { coinGroup.remove(coinGrid[z][x]); coinGrid[z][x] = null; }
+
+                updateUI(); sfx.harvest(); return true;
+            } return false;
+        }
+        function plantBlock(x, z, type) {
+            if (boardLogical[z][x] === 'empty') {
+                boardLogical[z][x] = type; growthLogical[z][x] = 1; rentCooldown[z][x] = 0; rentAppearTime[z][x] = 0; 
+                if (type === 'house') inventory.house++; if (type === 'shop') inventory.shop++; if (type === 'factory') inventory.factory++; if (type === 'hotel') inventory.hotel++;
+                let build = createBuilding(type, x, z); build.scale.set(0.05, 0.05, 0.05); mineGroup.add(build); sfx.harvest(); updateUI(); return true;
+            } return false;
+        }
+
+        setInterval(() => {
+            if (!isFarmActive || isPaused) return;
+            for (let z = 0; z < ROWS; z++) {
+                for (let x = 0; x < COLS; x++) {
+                    if (boardLogical[z][x] !== 'empty' && boardLogical[z][x] !== 'road' && growthLogical[z][x] < 100) {
+                        // ปรับความเร็วการก่อสร้างจากแอดมิน
+                        growthLogical[z][x] += (1 * adminBuildSpeed); 
+                        if (growthLogical[z][x] > 100) growthLogical[z][x] = 100;
+                        let b = mineGroup.children.find(m => m.userData.x === x && m.userData.z === z);
+                        if (b) { let s = Math.max(0.1, growthLogical[z][x] / 100) * 5.0; b.scale.set(s, s, s); }
+                    }
+                }
+            }
+        }, 10); 
+
+        function findNextTargetForCar(car) {
+            if(car.assignedPlot === null) return;
+            let pX = car.assignedPlot % PLOTS_X; let pZ = Math.floor(car.assignedPlot / PLOTS_X);
+            let startX = getPlotStart(pX); let startZ = getPlotStart(pZ);
+            let centerX = startX + Math.floor(PLOT_SIZE / 2); let centerZ = startZ + Math.floor(PLOT_SIZE / 2);
+            let bestTarget = null;
+            if (car.jobType === 'harvest') { if (boardLogical[centerZ] && boardLogical[centerZ][centerX] !== 'empty' && boardLogical[centerZ][centerX] !== 'road' && growthLogical[centerZ][centerX] >= 100) bestTarget = { x: centerX, z: centerZ }; } 
+            else if (car.jobType === 'plant') { if (boardLogical[centerZ] && boardLogical[centerZ][centerX] === 'empty') bestTarget = { x: centerX, z: centerZ }; }
+            car.targetPos = bestTarget;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate); const delta = Math.min(clock.getDelta(), 0.1);
+            if (isFarmActive && !isPaused) {
+                gameTime += delta;
+                activeCars.forEach(car => {
+                    if (car.assignedPlot === null) return; 
+                    if (car.group.position.y > 0) car.group.position.y = Math.max(0, car.group.position.y - delta * 2);
+                    if (!car.targetPos && !car.nextStep) {
+                        findNextTargetForCar(car);
+                        if (!car.targetPos && car.assignedPlot !== null && CAR_TYPES[car.type].isTemp) {
+                            ownedCars[car.type] = Math.max(0, ownedCars[car.type] - 1); scene.remove(car.group); car.markedForDeletion = true;
+                            if (!window.hasShownWorkerExpMsg) { showMessage('จบไซต์งาน!', `คนงานก่อสร้างใน <b>${plotNames[car.assignedPlot]}</b> เสร็จสิ้นภารกิจและเดินทางกลับแล้ว คุณสามารถจ้างใหม่ได้ที่เมนูสถิติเมือง`, '👷‍♂️', 4000); window.hasShownWorkerExpMsg = true; setTimeout(() => window.hasShownWorkerExpMsg = false, 5000); }
+                            updateUI(); return; 
+                        }
+                    }
+                    if (!car.nextStep && car.targetPos) {
+                        if (car.logicalPos.x !== car.targetPos.x) car.nextStep = { x: car.logicalPos.x + Math.sign(car.targetPos.x - car.logicalPos.x), z: car.logicalPos.z };
+                        else if (car.logicalPos.z !== car.targetPos.z) car.nextStep = { x: car.logicalPos.x, z: car.logicalPos.z + Math.sign(car.targetPos.z - car.logicalPos.z) };
+                        else {
+                            car.targetPos = null; 
+                            if (car.jobType === 'harvest') { if (mineBlock(car.logicalPos.x, car.logicalPos.z)) car.group.position.y = 0.15; } 
+                            else if (car.jobType === 'plant') { if (plantBlock(car.logicalPos.x, car.logicalPos.z, car.targetCrop)) car.group.position.y = 0.15; }
+                        }
+                        if (car.nextStep) {
+                            let targetRot = 0;
+                            if (car.nextStep.x > car.logicalPos.x) targetRot = 0; else if (car.nextStep.x < car.logicalPos.x) targetRot = Math.PI; else if (car.nextStep.z > car.logicalPos.z) targetRot = -Math.PI / 2; else if (car.nextStep.z < car.logicalPos.z) targetRot = Math.PI / 2;
+                            if (car.type === 'worker_1') targetRot += Math.PI / 2; car.group.rotation.y = targetRot;
+                        }
+                    }
+                    if (car.nextStep) {
+                        const stepSpeed = car.speed * delta; let dx = car.nextStep.x - car.group.position.x; let dz = car.nextStep.z - car.group.position.z; let dist = Math.sqrt(dx * dx + dz * dz);
+                        if (dist < stepSpeed) { car.group.position.x = car.nextStep.x; car.group.position.z = car.nextStep.z; car.logicalPos.x = car.nextStep.x; car.logicalPos.z = car.nextStep.z; car.nextStep = null; } 
+                        else { car.group.position.x += (dx / dist) * stepSpeed; car.group.position.z += (dz / dist) * stepSpeed; }
+                        car.group.children.forEach(child => {
+                            const time = Date.now() * 0.015 * car.speed;
+                            if (car.type === 'worker_1') {
+                                if (child.name === "leg_L1" || child.name === "arm_R") child.rotation.x = Math.sin(time) * 0.8;
+                                if (child.name === "leg_R1" || child.name === "arm_L") child.rotation.x = Math.sin(time + Math.PI) * 0.8;
+                            }
+                        });
+                    }
+                    if (!car.nextStep) { car.group.children.forEach(child => { if (car.type === 'worker_1') { if (child.name && (child.name.startsWith("leg") || child.name.startsWith("arm"))) child.rotation.x = THREE.MathUtils.lerp(child.rotation.x, 0, 0.1); } }); }
+                }); activeCars = activeCars.filter(c => !c.markedForDeletion);
+            }
+			
+			trafficCars.forEach(car => {
+                car.group.position.x += car.vx * delta;
+                car.group.position.z += car.vz * delta;
+                
+                if (car.vx > 0 && car.group.position.x > COLS + 15) car.group.position.x = -15;
+                if (car.vx < 0 && car.group.position.x < -15) car.group.position.x = COLS + 15;
+                if (car.vz > 0 && car.group.position.z > ROWS + 15) car.group.position.z = -15;
+                if (car.vz < 0 && car.group.position.z < -15) car.group.position.z = ROWS + 15;
+            });
+			
+            if (!isInMenu) {
+                camera.lookAt(camera.position.x, 0, camera.position.z - 15); 
+                renderer.render(scene, camera); 
+                const w = window.innerWidth, h = window.innerHeight;
+                
+                for(let z=0; z<ROWS; z++){
+                    for(let x=0; x<COLS; x++){
+                        let label = labelGrid[z][x];
+                        let type = boardLogical[z][x];
+                        let isBuilding = (type !== 'empty' && type !== 'road');
+                        let isGrowing = isBuilding && growthLogical[z][x] < 100;
+                        
+                        let isReady = isBuilding && growthLogical[z][x] >= 100 && rentCooldown[z] && rentCooldown[z][x] === 0 && rentAppearTime[z][x] > 0;
+
+                        if (isReady) {
+                            if (!coinGrid[z][x]) {
+                                const coin = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.2, 0.24, 16), getCoinMaterial());
+                                coin.rotation.x = Math.PI / 2;
+                                coin.rotation.y = Math.PI / 2;
+                                
+                                let yOffset = 4.5;
+                                if (type === 'house') yOffset = 5.0;
+                                else if (type === 'shop') yOffset = 4.5;
+                                else if (type === 'factory') yOffset = 6.5;
+                                else if (type === 'hotel') yOffset = 8.5;
+                                yOffset += 3.5; 
+                                
+                                coin.position.set(x, yOffset, z);
+                                coin.userData = { x, z, baseY: yOffset }; 
+                                coinGroup.add(coin);
+                                coinGrid[z][x] = coin;
+                            } else {
+                                coinGrid[z][x].rotation.y += delta * 2;
+                                coinGrid[z][x].position.y = coinGrid[z][x].userData.baseY + Math.sin(gameTime * 3 + x) * 0.3;
+                            }
+                        } else {
+                            if (coinGrid[z] && coinGrid[z][x]) {
+                                coinGroup.remove(coinGrid[z][x]);
+                                coinGrid[z][x] = null;
+                            }
+                        }
+
+                        if (isShowCropPercentage && isGrowing) {
+                            if(!label) {
+                                label = document.createElement('div'); 
+                                label.style.display = 'none';
+                                document.getElementById('labels-container').appendChild(label); 
+                                labelGrid[z][x] = label; label._currentText = ''; label._currentDisplay = ''; 
+                            }
+                            
+                            let newText = growthLogical[z][x] + '%';
+                            if (label._currentText !== newText) { 
+                                label.innerText = newText; label._currentText = newText; 
+                                label.className = 'absolute top-0 left-0 text-[10px] font-bold text-white bg-black/60 px-1 rounded transition-none pointer-events-none origin-center';
+                            }
+
+                            let yOffset = (type === 'factory' || type === 'hotel') ? 6.5 : 4.5;
+                            let pos = new THREE.Vector3(x, yOffset, z); 
+                            pos.project(camera); 
+                            
+                            if (pos.z >= -1 && pos.z <= 1 && pos.x >= -1.2 && pos.x <= 1.2 && pos.y >= -1.2 && pos.y <= 1.2) { 
+                                let screenX = (pos.x * .5 + .5) * w; let screenY = (pos.y * -.5 + .5) * h; 
+                                label.style.transform = `translate3d(calc(${screenX}px - 50%), calc(${screenY}px - 50%), 0)`;
+                                if(label._currentDisplay !== 'block') { label.style.display = 'block'; label._currentDisplay = 'block'; }
+                            } else { 
+                                if(label._currentDisplay !== 'none') { label.style.display = 'none'; label._currentDisplay = 'none'; } 
+                            }
+                        } else { 
+                            if(label && label._currentDisplay !== 'none') { label.style.display = 'none'; label._currentDisplay = 'none'; } 
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateUI() {
+            const hudNameEl = document.getElementById('hud-player-name'); if(hudNameEl) hudNameEl.innerText = playerName;
+            document.getElementById('menu-money').innerText = inventory.money.toLocaleString(); 
+            document.getElementById('stat-money').innerText = inventory.money.toLocaleString();
+            document.getElementById('hud-money').innerText = inventory.money.toLocaleString(); 
+
+            let megaCounts = { school: 0, hospital: 0, airport: 0, transport: 0, zoo: 0 };
+            megaBoardLogical.forEach(type => { if(type && type !== 'empty') megaCounts[type]++; });
+
+            let population = (inventory.house || 0) * 5 + (megaCounts.hospital * 1000);      
+            let food = (inventory.shop || 0) * 20 + (megaCounts.transport * 1000);            
+            let workers = (inventory.factory || 0) * 15 + (megaCounts.transport * 2000);      
+            let tourists = (inventory.hotel || 0) * 10 + (megaCounts.airport * 5000) + (megaCounts.zoo * 2000);       
+
+            let happiness = population === 0 ? 100 : Math.min(100, (tourists * 2.5) + (megaCounts.school * 20) + (megaCounts.hospital * 30) + (megaCounts.zoo * 40)); 
+            let hungerStatus = population === 0 ? 100 : Math.min(100, Math.floor((food / population) * 100));
+            let wealthIndex = population === 0 ? 100 : Math.min(100, Math.floor((workers / Math.max(1, population)) * 100) + (megaCounts.school * 10) + (megaCounts.airport * 20)); 
+
+            document.getElementById('stat-house').innerText = population.toLocaleString();
+            document.getElementById('stat-shop').innerText = food.toLocaleString();
+            document.getElementById('stat-factory').innerText = workers.toLocaleString();
+            document.getElementById('stat-hotel').innerText = tourists.toLocaleString();
+
+            document.getElementById('hud-house').innerText = population.toLocaleString();
+            document.getElementById('hud-shop').innerText = food.toLocaleString();
+            document.getElementById('hud-factory').innerText = workers.toLocaleString();
+            document.getElementById('hud-hotel').innerText = tourists.toLocaleString();
+
+            let elHappy = document.getElementById('stat-happiness');
+            let elHunger = document.getElementById('stat-hunger');
+            let elWealth = document.getElementById('stat-wealth');
+
+            if (elHappy) elHappy.innerText = happiness.toFixed(0) + '%';
+            if (elHunger) elHunger.innerText = hungerStatus.toFixed(0) + '%';
+            if (elWealth) elWealth.innerText = wealthIndex.toFixed(0) + '%';
+            
+            if (population > 0) {
+                let now = Date.now();
+                if (now - lastAlertTime > 8000) {
+                    if (hungerStatus < 10 && !alertFlags.hunger) {
+                        showMessage('วิกฤตความหิวโหย!', 'ประชากรของคุณกำลังอดอยาก (อาหาร < 10%)<br>รีบสร้าง <b>โซนการค้า 🏪</b> หรือขนส่ง!', '⚠️', 6000);
+                        alertFlags.hunger = true; lastAlertTime = now; try{sfx.error();}catch(e){}
+                    } else if (wealthIndex < 10 && !alertFlags.wealth) {
+                        showMessage('วิกฤตเศรษฐกิจ!', 'คนตกงานจำนวนมาก (ความมั่งคั่ง < 10%)<br>รีบสร้าง <b>เขตอุตสาหกรรม 🏭</b> เพื่อสร้างงาน!', '📉', 6000);
+                        alertFlags.wealth = true; lastAlertTime = now; try{sfx.error();}catch(e){}
+                    } else if (happiness < 10 && !alertFlags.happiness) {
+                        showMessage('วิกฤตความสุข!', 'ประชาชนเริ่มเครียด (ความสุข < 10%)<br>โปรดสร้าง <b>โรงแรม 🏨</b> หรือสวนสัตว์!', '💔', 6000);
+                        alertFlags.happiness = true; lastAlertTime = now; try{sfx.error();}catch(e){}
+                    }
+                }
+                
+                if (hungerStatus >= 15) alertFlags.hunger = false;
+                if (wealthIndex >= 15) alertFlags.wealth = false;
+                if (happiness >= 15) alertFlags.happiness = false;
+            }
+
+            if (elHunger) {
+                if (hungerStatus < 50) elHunger.className = 'text-sm font-bold text-red-400 mt-1 animate-pulse';
+                else elHunger.className = 'text-sm font-bold text-green-400 mt-1';
+            }
+            if (elHappy) {
+                if (happiness < 50) elHappy.className = 'text-sm font-bold text-red-400 mt-1 animate-pulse';
+                else elHappy.className = 'text-sm font-bold text-pink-400 mt-1';
+            }
+            if (elWealth) {
+                if (wealthIndex < 50) elWealth.className = 'text-sm font-bold text-red-400 mt-1 animate-pulse';
+                else elWealth.className = 'text-sm font-bold text-yellow-400 mt-1';
+            }
+
+            for(let key in ownedCars) { 
+                const badge = document.getElementById(`count-${key}`); 
+                if (badge) badge.innerText = ownedCars[key].toLocaleString(); 
+            }
+        }
+
+        const modal = document.getElementById('message-modal'); const modalContent = document.getElementById('message-content'); let messageTimeout = null;
+        function showMessage(title, text, icon = '💬', autoCloseMs = 3000) {
+            if(messageTimeout) { clearTimeout(messageTimeout); messageTimeout = null; }
+            document.getElementById('message-title').innerText = title; document.getElementById('message-text').innerHTML = text; document.getElementById('message-icon').innerText = icon;
+            modal.classList.remove('opacity-0'); modalContent.classList.replace('scale-95', 'scale-100');
+            if(autoCloseMs > 0) messageTimeout = setTimeout(() => closeMessage(true), autoCloseMs);
+        }
+        function closeMessage(isAuto = false) { if(!isAuto && typeof sfx !== 'undefined') sfx.click(); modal.classList.add('opacity-0'); modalContent.classList.replace('scale-100', 'scale-95'); }
+        window.addEventListener('resize', () => { if(isInMenu) return; renderer.setSize(window.innerWidth, window.innerHeight); camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); });
+
+        // ==========================================
+        // PASSIVE INCOME ADMIN SETTING
+        // ==========================================
+        let passiveIncomeTimer = null;
+        function startPassiveIncome() {
+            if (passiveIncomeTimer) clearInterval(passiveIncomeTimer);
+            let interval = 5000 / adminIncomeSpeed; // คำนวณความเร็วรับเงินจาก Admin 
+            passiveIncomeTimer = setInterval(() => {
+                if (!isFarmActive || isPaused) return; 
+                let passiveIncome = 0;
+                passiveIncome += (inventory.house || 0) * 10; passiveIncome += (inventory.shop || 0) * 30;
+                passiveIncome += (inventory.factory || 0) * 100; passiveIncome += (inventory.hotel || 0) * 300;
+                if (passiveIncome > 0) {
+                    inventory.money += passiveIncome; updateUI(); 
+                    const hudMoney = document.getElementById('hud-money');
+                    if (hudMoney) {
+                        const rect = hudMoney.getBoundingClientRect(); const floatDiv = document.createElement('div'); floatDiv.className = 'float-text'; floatDiv.style.position = 'fixed'; 
+                        floatDiv.style.left = `${rect.left}px`; floatDiv.style.top = `${rect.top + 25}px`; floatDiv.style.zIndex = '9999'; floatDiv.style.color = '#4ade80'; 
+                        floatDiv.innerHTML = `+${passiveIncome.toLocaleString()} ฿`; document.body.appendChild(floatDiv); setTimeout(() => floatDiv.remove(), 1000);
+                    }
+                }
+            }, interval);
+        }
+
+        // ==========================================
+        // ฟังก์ชันเก็บเงินจากตึก 
+        // ==========================================
+        function collectRent(x, z) {
+            if (!rentCooldown || !rentCooldown[z] || rentCooldown[z][x] > 0 || rentAppearTime[z][x] === 0) return;
+            
+            let type = boardLogical[z][x];
+            let amount = 0;
+            if (type === 'house') amount = 100;
+            else if (type === 'shop') amount = 200;
+            else if (type === 'factory') amount = 1000;
+            else if (type === 'hotel') amount = 2000;
+
+            if (amount > 0) {
+                rentCooldown[z][x] = 30; 
+                rentAppearTime[z][x] = 0; 
+                
+                inventory.money += amount;
+                updateUI();
+                try { if (typeof sfx !== 'undefined') sfx.buy(); } catch (e) {}
+                
+                if (coinGrid[z] && coinGrid[z][x]) {
+                    coinGroup.remove(coinGrid[z][x]);
+                    coinGrid[z][x] = null;
+                }
+
+                let pos = new THREE.Vector3(x, 5, z); 
+                pos.project(camera); 
+                let screenX = (pos.x * .5 + .5) * window.innerWidth;
+                let screenY = (pos.y * -.5 + .5) * window.innerHeight;
+
+                const floatDiv = document.createElement('div'); 
+                floatDiv.className = 'float-text font-bold drop-shadow-md'; 
+                floatDiv.style.position = 'fixed'; 
+                floatDiv.style.left = `${screenX}px`; 
+                floatDiv.style.top = `${screenY}px`; 
+                floatDiv.style.zIndex = '9999'; 
+                floatDiv.style.color = '#4ade80'; 
+                floatDiv.style.fontSize = '24px';
+                floatDiv.style.transform = 'translate(-50%, -50%)';
+                floatDiv.innerHTML = `+${amount.toLocaleString()} ฿`; 
+                document.body.appendChild(floatDiv); 
+                setTimeout(() => floatDiv.remove(), 1200);
+            }
+        }
+
+        animate(); 
+    </script>
+</body>
+</html>
