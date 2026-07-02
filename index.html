@@ -1710,8 +1710,13 @@
                 }
             } return group;
         }
-
-        function generateMap() {
+		
+		
+		
+		
+		
+		
+		function generateMap() {
             document.getElementById('loading').style.display = 'flex'; document.getElementById('loading').style.opacity = '1';
             while(mineGroup.children.length > 0) mineGroup.remove(mineGroup.children[0]); 
             while(envGroup.children.length > 0) envGroup.remove(envGroup.children[0]);
@@ -1719,6 +1724,13 @@
             activeCars.forEach(c => scene.remove(c.group)); activeCars = [];
             megaPlotMeshes = [];
             
+            // 🌟 [แก้ไข] สำรองข้อมูลสิ่งปลูกสร้างและเวลาเดิมเอาไว้ก่อนเคลียร์อาร์เรย์ เพื่อไม่ให้บ้านเดิมหาย
+            let localBoard = boardLogical;
+            let localGrowth = growthLogical;
+            let localCooldown = rentCooldown;
+            let localAppear = rentAppearTime;
+            let hasExistingData = (localBoard && localBoard.length > 0);
+
             boardLogical = []; growthLogical = []; labelGrid = []; rentCooldown = []; rentAppearTime = []; coinGrid = []; document.getElementById('labels-container').innerHTML = '';
             plotMeshes = new Array(TOTAL_PLOTS); plotFences = new Array(TOTAL_PLOTS);
 
@@ -1839,21 +1851,35 @@
                 }
             }
 
+            // 🌟 [แก้ไข] ลูปสร้างตึกใหม่โดยอิงจากข้อมูลที่ Backup ไว้ใน localBoard / localGrowth
             for (let z = 0; z < ROWS; z++) {
                 let row = [], gRow = [], lRow = [], rcRow = [], rcAppRow = [], cRow = [];
                 for (let x = 0; x < COLS; x++) {
-                    let cellType = 'empty'; let growth = 0;
+                    let cellType = 'empty'; let growth = 0; let rCooldown = 0; let rAppear = 0;
                     let pX = getPlotFromCoord(x); let pZ = getPlotFromCoord(z);
                     let isRoad = (pX === -1 || pZ === -1); 
 
-                    if (!isRoad && isLoadingSave && boardLogicalSaved[z] && growthLogicalSaved[z]) {
-                        cellType = boardLogicalSaved[z][x] || 'empty'; growth = growthLogicalSaved[z][x] || 0;
-                        if (cellType !== 'empty' && cellType !== 'road') {
-                            let build = createBuilding(cellType, x, z); let s = Math.max(0.01, growth / 100) * 5.0; 
-                            build.scale.set(s, s, s); mineGroup.add(build);
+                    if (!isRoad) {
+                        if (hasExistingData && localBoard[z] && localBoard[z][x]) {
+                            // นำค่าเดิมที่กำลังเล่นอยู่กลับมาใช้
+                            cellType = localBoard[z][x];
+                            growth = localGrowth[z][x];
+                            rCooldown = (localCooldown && localCooldown[z]) ? localCooldown[z][x] : 0;
+                            rAppear = (localAppear && localAppear[z]) ? localAppear[z][x] : 0;
+                            if (cellType !== 'empty' && cellType !== 'road') {
+                                let build = createBuilding(cellType, x, z); let s = Math.max(0.01, growth / 100) * 5.0; 
+                                build.scale.set(s, s, s); mineGroup.add(build);
+                            }
+                        } else if (isLoadingSave && boardLogicalSaved[z] && growthLogicalSaved[z]) {
+                            // ดึงค่าจากคลาวด์ (กรณีเพิ่งโหลดเกมครั้งแรก)
+                            cellType = boardLogicalSaved[z][x] || 'empty'; growth = growthLogicalSaved[z][x] || 0;
+                            if (cellType !== 'empty' && cellType !== 'road') {
+                                let build = createBuilding(cellType, x, z); let s = Math.max(0.01, growth / 100) * 5.0; 
+                                build.scale.set(s, s, s); mineGroup.add(build);
+                            }
                         }
                     }
-                    row.push(isRoad ? 'road' : cellType); gRow.push(growth); lRow.push(null); rcRow.push(0); rcAppRow.push(0); cRow.push(null);
+                    row.push(isRoad ? 'road' : cellType); gRow.push(growth); lRow.push(null); rcRow.push(rCooldown); rcAppRow.push(rAppear); cRow.push(null);
                 }
                 boardLogical.push(row); growthLogical.push(gRow); labelGrid.push(lRow); rentCooldown.push(rcRow); rentAppearTime.push(rcAppRow); coinGrid.push(cRow);
             }
@@ -1868,9 +1894,20 @@
 
             camera.position.set(COLS / 2, 70, (ROWS / 2) + 50); 
             camera.lookAt(COLS / 2, 0, ROWS / 2);
-			initTraffic();
+            initTraffic();
             setTimeout(() => { document.getElementById('loading').style.opacity = '0'; setTimeout(() => document.getElementById('loading').style.display = 'none', 500); }, 100);
         }
+
+
+
+
+
+
+
+
+
+
+
 
         function isPlotEmpty(plotIndex) {
             let pX = plotIndex % PLOTS_X; let pZ = Math.floor(plotIndex / PLOTS_X);
