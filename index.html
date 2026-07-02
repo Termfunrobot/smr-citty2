@@ -315,21 +315,24 @@
         // ==========================================
         // FIREBASE INITIALIZATION & AUTH SYSTEM
         // ==========================================
+   // ==========================================
+        // FIREBASE INITIALIZATION & AUTH SYSTEM
+        // ==========================================
         const firebaseConfig = {
-            apiKey: "AIzaSyAjIHXXbkaDllqHxsp01QT08T6MyLWziqI",
-            authDomain: "test-mode-175a8.firebaseapp.com",
-            databaseURL: "https://test-mode-175a8-default-rtdb.firebaseio.com",
-            projectId: "test-mode-175a8",
-            storageBucket: "test-mode-175a8.firebasestorage.app",
-            messagingSenderId: "123405704419",
-            appId: "1:123405704419:web:d9ff94c5407e24a1fef9d6",
-            measurementId: "G-BJRHD7FB2P"
+            apiKey: "AIzaSyA8PgglzAXrxeieAaRRlsj16-E0Z6jX8tE",
+            authDomain: "gametess.firebaseapp.com",
+            databaseURL: "https://gametess-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "gametess",
+            storageBucket: "gametess.firebasestorage.app",
+            messagingSenderId: "291469130688",
+            appId: "1:291469130688:web:b4508c85730315d30b2625",
+            measurementId: "G-WLMHJZ7DQT"
         };
 
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth(); const db = firebase.firestore();
-        let isLoginMode = true; let currentUser = null; let playerName = "นายกฯมือใหม่"; 
-
+        let isLoginMode = true; let currentUser = null; let playerName = "นายกฯมือใหม่";
+  
         // ADMIN VARIABLES
         let adminBuildSpeed = 1.0;
         let adminIncomeSpeed = 1.0;
