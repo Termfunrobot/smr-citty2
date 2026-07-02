@@ -666,29 +666,95 @@
         const trafficGroup = new THREE.Group(); scene.add(trafficGroup);
         let trafficCars = [];
 
-        function createTrafficCar() {
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+function createTrafficCar() {
             const group = new THREE.Group();
-            const colors = [0xef4444, 0x3b82f6, 0xeab308, 0x22c55e, 0xf97316, 0xffffff, 0x94a3b8];
+            const colors = [0xef4444, 0x3b82f6, 0xeab308, 0x22c55e, 0xf97316, 0xffffff, 0x1e293b, 0x94a3b8];
             const carColor = colors[Math.floor(Math.random() * colors.length)];
             
             const matBody = new THREE.MeshLambertMaterial({ color: carColor });
-            const matWindow = new THREE.MeshLambertMaterial({ color: 0x1e293b });
-            const matWheel = new THREE.MeshLambertMaterial({ color: 0x111827 });
+            const matWindow = new THREE.MeshLambertMaterial({ color: 0x111827 }); 
+            const matWheel = new THREE.MeshLambertMaterial({ color: 0x000000 });
+            const matGray = new THREE.MeshLambertMaterial({ color: 0x6b7280 }); 
 
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.4), matBody);
-            body.position.y = 0.2; body.castShadow = true;
-            
-            const top = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 0.36), matWindow);
-            top.position.set(-0.05, 0.45, 0); top.castShadow = true;
+            // 🌟 [แก้ไข] สุ่มประเภทรถเหลือ 4 แบบ: 0=Hatchback, 1=Sedan, 2=Pickup, 3=Van
+            const carType = Math.floor(Math.random() * 4);
 
-            const createWheel = (x, z) => {
-                const w = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.1, 8), matWheel);
-                w.rotation.x = Math.PI / 2; w.position.set(x, 0.1, z); return w;
+            // ฟังก์ชันช่วยสร้างล้อ
+            const createWheel = (x, z, r = 0.12, w = 0.1) => {
+                const wheel = new THREE.Mesh(new THREE.CylinderGeometry(r, r, w, 12), matWheel);
+                wheel.rotation.x = Math.PI / 2;
+                wheel.position.set(x, r, z);
+                return wheel;
             };
-            
-            group.add(body, top, createWheel(0.25, 0.22), createWheel(-0.25, 0.22), createWheel(0.25, -0.22), createWheel(-0.25, -0.22));
+
+            if (carType === 0) {
+                // 🚗 1. Hatchback (รถ 5 ประตู ท้ายตัด)
+                const body = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.3, 0.45), matBody);
+                body.position.y = 0.25; body.castShadow = true;
+                const top = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.25, 0.4), matWindow);
+                top.position.set(-0.05, 0.5, 0); top.castShadow = true;
+                group.add(body, top);
+                group.add(createWheel(0.25, 0.25), createWheel(-0.25, 0.25), createWheel(0.25, -0.25), createWheel(-0.25, -0.25));
+                
+            } else if (carType === 1) {
+                // 🚘 2. Sedan (รถเก๋ง 4 ประตู)
+                const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.25, 0.45), matBody);
+                body.position.y = 0.25; body.castShadow = true;
+                const top = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.22, 0.4), matWindow);
+                top.position.set(0, 0.48, 0); top.castShadow = true;
+                group.add(body, top);
+                group.add(createWheel(0.3, 0.25), createWheel(-0.3, 0.25), createWheel(0.3, -0.25), createWheel(-0.3, -0.25));
+                
+            } else if (carType === 2) {
+                // 🛻 3. Pickup (รถกระบะ)
+                const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.3, 0.48), matBody);
+                body.position.y = 0.27; body.castShadow = true;
+                const cab = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.25, 0.45), matWindow);
+                cab.position.set(0.15, 0.52, 0); cab.castShadow = true;
+                const bed = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.1, 0.42), matGray);
+                bed.position.set(-0.3, 0.47, 0); bed.castShadow = true; 
+                group.add(body, cab, bed);
+                group.add(createWheel(0.35, 0.26, 0.14), createWheel(-0.35, 0.26, 0.14), createWheel(0.35, -0.26, 0.14), createWheel(-0.35, -0.26, 0.14));
+                
+            } else {
+                // 🚐 4. Van (รถตู้)
+                const body = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.4, 0.48), matBody);
+                body.position.y = 0.35; body.castShadow = true;
+                const top = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.45), matWindow);
+                top.position.set(0.05, 0.6, 0); top.castShadow = true;
+                group.add(body, top);
+                group.add(createWheel(0.35, 0.26, 0.13), createWheel(-0.35, 0.26, 0.13), createWheel(0.35, -0.26, 0.13), createWheel(-0.35, -0.26, 0.13));
+            }
+
+            // ขยายขนาดให้พอดีกับถนน 
+            group.scale.set(1.8, 1.8, 1.8); 
+
             return group;
         }
+
+
+
+
+
+
+
+
+
+
 
         function initTraffic() {
             while(trafficGroup.children.length > 0) trafficGroup.remove(trafficGroup.children[0]);
@@ -1446,97 +1512,147 @@
 
                 group.add(base, mainWall, roofTrim, roofTop, signFrame, signBoard, door, doorGlass, winFrame, winGlass, fruitStand, aSign, acBox, acFan, sideDoor, sideWin, bushL, bushR);
                 
-            } else if (type === 'factory') {
-                const matWall = new THREE.MeshLambertMaterial({ color: 0xa3a3a3 }); 
-                const matBase = new THREE.MeshLambertMaterial({ color: 0x52525b }); 
-                const matRoof = new THREE.MeshLambertMaterial({ color: 0x3f3f46 }); 
-                const matGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); 
-                const matDoor = new THREE.MeshLambertMaterial({ color: 0x27272a }); 
-                const matRed = new THREE.MeshLambertMaterial({ color: 0xdc2626 }); 
-                const matWhite = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 }); 
-                const matPipe = new THREE.MeshLambertMaterial({ color: 0x71717a }); 
-                const matPlant = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); 
-
-                const base = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.1, 0.75), matBase);
-                base.position.y = 0.05; base.castShadow = true;
-
-                const bLeft = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.45, 0.65), matWall);
-                bLeft.position.set(-0.2, 0.325, 0); bLeft.castShadow = true;
+        
+		
+		
                 
-                const bRight = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 0.65), matWall);
-                bRight.position.set(0.225, 0.275, 0); bRight.castShadow = true;
+				} else if (type === 'factory') {
+                // [ SMR Smart Robotics Office Style ]
+                const matWall = new THREE.MeshLambertMaterial({ color: 0xf8fafc }); // ผนังตึกสีขาว
+                const matDark = new THREE.MeshLambertMaterial({ color: 0x334155 }); // เสาสีเทาดำ
+                const matGlass = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); // กระจกสีฟ้าใส
+                const matBlue = new THREE.MeshLambertMaterial({ color: 0x1d4ed8 }); // น้ำเงินโลโก้ SMR
+                const matFloor = new THREE.MeshLambertMaterial({ color: 0x3f3f46 }); // พื้นถนน/ลานจอดรถ
+                const matYellow = new THREE.MeshLambertMaterial({ color: 0xfacc15 }); // กล่องไม้กั้นป้อมยาม
+                const matTree = new THREE.MeshLambertMaterial({ color: 0x4ade80 }); // พุ่มไม้
+                const matSignWhite = new THREE.MeshLambertMaterial({ color: 0xffffff }); // ตัวหนังสือสีขาว
 
-                const roof = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 0.7), matRoof);
-                roof.position.set(0, 0.52, 0);
-                roof.rotation.z = -0.15; 
-                roof.castShadow = true;
+                // 1. พื้นลานจอดรถด้านล่างสุด
+                const base = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.04, 0.85), matFloor);
+                base.position.y = 0.02; base.castShadow = true;
 
-                const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.24, 0.02), matRoof);
-                doorFrame.position.set(-0.15, 0.22, 0.33);
-                const cargoDoor = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 0.03), matDoor);
-                cargoDoor.position.set(-0.15, 0.21, 0.33);
+                // 2. ตัวอาคารหลัก (ใช้กระจกเป็นแกนกลางเพื่อให้ดูเป็นตึกกระจก)
+                const core = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.45, 0.5), matGlass);
+                core.position.set(-0.05, 0.265, -0.1); core.castShadow = true;
 
-                const createWin = (w, h, x, y) => {
-                    const g = new THREE.Group();
-                    const frame = new THREE.Mesh(new THREE.BoxGeometry(w+0.04, h+0.04, 0.02), matRoof);
-                    const glass = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.03), matGlass);
-                    g.add(frame, glass); g.position.set(x, y, 0.33); return g;
+                // 3. กรอบผนังตึกสีขาว (Facade) ที่ครอบกระจกอยู่
+                const roofRim = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.06, 0.53), matWall);
+                roofRim.position.set(-0.05, 0.47, -0.1); roofRim.castShadow = true;
+                
+                const midRim = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.06, 0.53), matWall);
+                midRim.position.set(-0.05, 0.25, -0.1); midRim.castShadow = true;
+                
+                const baseRim = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.04, 0.53), matWall);
+                baseRim.position.set(-0.05, 0.06, -0.1); baseRim.castShadow = true;
+
+                const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 0.53), matWall);
+                leftWall.position.set(-0.36, 0.265, -0.1); leftWall.castShadow = true;
+                
+                const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.45, 0.53), matWall);
+                rightWall.position.set(0.26, 0.265, -0.1); rightWall.castShadow = true;
+
+                const frontCenter = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.45, 0.06), matWall);
+                frontCenter.position.set(-0.05, 0.265, 0.135); frontCenter.castShadow = true;
+
+                // 4. เสาสีเทาดำตกแต่งขอบตึกซ้าย
+                const darkPillar1 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), matDark);
+                darkPillar1.position.set(-0.4, 0.29, 0.05); darkPillar1.castShadow = true;
+                const darkPillar2 = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.5, 0.08), matDark);
+                darkPillar2.position.set(-0.4, 0.29, -0.25); darkPillar2.castShadow = true;
+
+                // 5. โกดัง/จุดโหลดของด้านขวา
+                const garageRoof = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.06, 0.4), matWall);
+                garageRoof.position.set(0.35, 0.25, -0.15); garageRoof.castShadow = true;
+                const garagePillar1 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.25, 0.06), matDark);
+                garagePillar1.position.set(0.44, 0.125, -0.05); garagePillar1.castShadow = true;
+                const garagePillar2 = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.25, 0.06), matDark);
+                garagePillar2.position.set(0.44, 0.125, -0.3); garagePillar2.castShadow = true;
+
+                // 6. กันสาดสีน้ำเงินและประตูทางเข้า
+                const awning = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.04, 0.15), matBlue);
+                awning.position.set(-0.05, 0.18, 0.22); awning.castShadow = true;
+                const door = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 0.02), matDark);
+                door.position.set(-0.05, 0.1, 0.17);
+
+                // 7. ป้ายหลังคา SMR
+                const roofSignBG = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.12, 0.02), matBlue);
+                roofSignBG.position.set(-0.05, 0.58, -0.05); roofSignBG.castShadow = true;
+                const roofSignPoleL = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.06), matDark);
+                roofSignPoleL.position.set(-0.15, 0.53, -0.05);
+                const roofSignPoleR = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.06), matDark);
+                roofSignPoleR.position.set(0.05, 0.53, -0.05);
+                const roofSignText = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.04, 0.03), matSignWhite);
+                roofSignText.position.set(-0.05, 0.59, -0.05);
+
+                // ป้ายโลโก้ SMR กลางตึก
+                const facadeText = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.08, 0.06), matBlue);
+                facadeText.position.set(-0.05, 0.35, 0.14);
+
+                // 8. รายละเอียดดาดฟ้า (แอร์คอมเพรสเซอร์, จานดาวเทียม)
+                const acUnit = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.12), matWall);
+                acUnit.position.set(0.15, 0.54, -0.2); acUnit.castShadow = true;
+                const acFan = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.13, 8), matDark);
+                acFan.position.set(0.15, 0.54, -0.2); acFan.rotation.z = Math.PI/2;
+                
+                const dish = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.01, 12), matWall);
+                dish.position.set(-0.25, 0.55, -0.2);
+                dish.rotation.x = Math.PI/4; dish.rotation.y = Math.PI/4;
+                const dishPole = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.06), matDark);
+                dishPole.position.set(-0.25, 0.52, -0.2);
+
+                // 9. ลานจอดรถ ป้อมยาม และไม้กั้น
+                const line1 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 0.25), matSignWhite);
+                line1.position.set(-0.18, 0.045, 0.28);
+                const line2 = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.01, 0.25), matSignWhite);
+                line2.position.set(0.08, 0.045, 0.28);
+                
+                const guardHouse = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.15, 0.12), matWall);
+                guardHouse.position.set(0.35, 0.115, 0.35); guardHouse.castShadow = true;
+                const guardRoof = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.02, 0.14), matBlue);
+                guardRoof.position.set(0.35, 0.2, 0.35); guardRoof.castShadow = true;
+                const guardWin = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.05, 0.13), matGlass);
+                guardWin.position.set(0.35, 0.13, 0.35);
+                
+                const barrierBox = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.08, 0.04), matYellow);
+                barrierBox.position.set(0.25, 0.08, 0.35);
+                const barrierPole = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.02, 0.02), matDark);
+                barrierPole.position.set(0.1, 0.1, 0.35);
+                
+                // ป้ายตั้งพื้นด้านหน้า
+                const monSignBase = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.05), matDark);
+                monSignBase.position.set(-0.35, 0.065, 0.35); monSignBase.castShadow = true;
+                const monSign = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.1, 0.03), matBlue);
+                monSign.position.set(-0.35, 0.14, 0.35); monSign.castShadow = true;
+
+                // 10. ต้นไม้ประดับรอบๆ ออฟฟิศ
+                const createTree = (x, z) => {
+                    const tg = new THREE.Group();
+                    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.05), matDark);
+                    trunk.position.y = 0.065;
+                    const leaves = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.18, 5), matTree);
+                    leaves.position.y = 0.15; leaves.castShadow = true;
+                    tg.add(trunk, leaves);
+                    tg.position.set(x, 0, z);
+                    return tg;
                 };
-                const winTop = createWin(0.25, 0.08, -0.15, 0.42); 
-                const winRight = createWin(0.15, 0.08, 0.25, 0.32); 
+                group.add(createTree(-0.42, 0.25), createTree(-0.42, 0.1), createTree(-0.42, -0.05), createTree(-0.42, -0.2));
+                group.add(createTree(0.42, 0.15), createTree(0.42, 0));
 
-                const siloLeft = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.35, 16), matWall);
-                siloLeft.position.set(-0.48, 0.275, 0.15); siloLeft.castShadow = true;
-                const siloLeftCap = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.05, 16), matRoof);
-                siloLeftCap.position.set(-0.48, 0.475, 0.15);
-                
-                const siloRight = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.25, 16), matWall);
-                siloRight.position.set(0.45, 0.225, -0.1); siloRight.castShadow = true;
-
-                const stripeStack = new THREE.Group();
-                for(let i=0; i<6; i++) {
-                    const colorMat = i % 2 === 0 ? matWhite : matRed;
-                    const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 16), colorMat);
-                    stripe.position.y = 0.5 + (i * 0.1); stripe.castShadow = true;
-                    stripeStack.add(stripe);
-                }
-                const stackTop = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 16), matRoof);
-                stackTop.position.y = 1.1; stripeStack.add(stackTop);
-                stripeStack.position.set(0.2, 0, -0.15);
-
-                const gStack1 = new THREE.Group();
-                const gBody1 = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.25, 16), matWall);
-                gBody1.position.y = 0.55; gBody1.castShadow = true;
-                const gTop1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.06, 16), matRoof);
-                gTop1.position.y = 0.7; gStack1.add(gBody1, gTop1);
-                gStack1.position.set(-0.15, 0, -0.15);
-
-                const gStack2 = new THREE.Group();
-                const gBody2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.15, 16), matWall);
-                gBody2.position.y = 0.525; gBody2.castShadow = true;
-                const gTop2 = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.04, 16), matRoof);
-                gTop2.position.y = 0.62; gStack2.add(gBody2, gTop2);
-                gStack2.position.set(-0.3, 0, -0.1);
-
-                const pipe1 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.3, 8), matPipe);
-                pipe1.position.set(0.15, 0.2, 0.34); pipe1.rotation.z = Math.PI / 2;
-                
-                const pipe2 = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.2, 8), matPipe);
-                pipe2.position.set(0.3, 0.1, 0.34);
-                
-                const acUnit = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.1, 0.05), matRoof);
-                acUnit.position.set(0.35, 0.2, 0.34);
-                const acFan = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.06, 8), matBase);
-                acFan.position.set(0.35, 0.2, 0.34); acFan.rotation.x = Math.PI / 2;
-
-                const bush1 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.08), matPlant);
-                bush1.position.set(-0.4, 0.1, 0.35); bush1.castShadow = true;
-                const bush2 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.06), matPlant);
-                bush2.position.set(-0.48, 0.08, 0.3); bush2.castShadow = true;
-                const bush3 = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09), matPlant);
-                bush3.position.set(0.42, 0.12, 0.32); bush3.castShadow = true;
-
-                group.add(base, bLeft, bRight, roof, doorFrame, cargoDoor, winTop, winRight, siloLeft, siloLeftCap, siloRight, stripeStack, gStack1, gStack2, pipe1, pipe2, acUnit, acFan, bush1, bush2, bush3);
+                // นำองค์ประกอบทั้งหมดใส่เข้าไปใน Group ของโรงงาน
+                group.add(base, core, roofRim, midRim, baseRim, leftWall, rightWall, frontCenter);
+                group.add(darkPillar1, darkPillar2, garageRoof, garagePillar1, garagePillar2);
+                group.add(awning, door, roofSignBG, roofSignPoleL, roofSignPoleR, roofSignText, facadeText);
+                group.add(acUnit, acFan, dish, dishPole);
+                group.add(line1, line2, guardHouse, guardRoof, guardWin, barrierBox, barrierPole, monSignBase, monSign);
+				
+				
+				
+				
+				
+				
+				
+				
+				
                 
             } else if (type === 'hotel') {
                 const matWall = new THREE.MeshLambertMaterial({ color: 0xedded5 }); 
